@@ -1,6 +1,6 @@
 {
   "name": "nullx11code",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Free-first multi-provider AI coding agent for your terminal and browser. NVIDIA NIM, Groq, Cerebras, OpenRouter, Gemini & more. Skills, slash commands, model icons.",
   "type": "module",
   "bin": {

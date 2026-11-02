@@ -11,6 +11,9 @@ import { runTurn } from './chat.js';
 import { COMMANDS, findCommand, completeCommand } from './commands.js';
 import { discoverExtras, renderExtra, resolveInvocation, commandEntries } from './extracmds.js';
 import { actionSummary } from './tools.js';
+import { evaluate, actionForKind } from './permissions.js';
+import { expandMentions, buildContent } from './mentions.js';
+import { checkForUpdate, runInstaller } from './update.js';
 
 const BASE_PROMPT = (root, provName) => `You are nullx11code, a concise AI coding agent running in the user's terminal (also usable from mobile terminals like Termux).
 Project root: ${root}
@@ -87,6 +90,7 @@ export async function runInteractive(opts = {}) {
     settings,
     quitting: false,
     agent: 'build', // opencode-style: build (full) | plan (read-only)
+    todos: [], // todowrite/todoread state for the session
   };
 
   state.refreshSkills = () => {
@@ -175,8 +179,10 @@ export async function runInteractive(opts = {}) {
     printHeader();
   }
 
-  // ---- approval plumbing ----
+  // ---- approval plumbing (opencode: rules → session always → prompt) ----
   let pendingApproval = null; // { resolve }
+  let pendingQuestion = null; // { q, resolve }
+  let pendingUpdate = null; // { resolve } — launch-time update question
   let rl = null;
 
   const askApproval = (action) => {
@@ -184,6 +190,17 @@ export async function runInteractive(opts = {}) {
     if (state.agent === 'plan' && (action.kind === 'write' || action.kind === 'shell')) {
       console.log(c.dim(`  denied (plan agent): ${action.title} — switch with /agent build`));
       return Promise.resolve(false);
+    }
+    // permission rules from config (deny > allow > default)
+    const permAction = actionForKind(action.kind);
+    const effect = evaluate(permAction, action.resource ?? '*', state.cfg.permissions);
+    if (effect === 'deny') {
+      console.log(c.dim(`  denied by rule: ${permAction} ${action.resource ?? ''}`));
+      return Promise.resolve(false);
+    }
+    if (effect === 'allow') {
+      console.log(c.dim(`  allowed by rule (${permAction}${action.resource && action.resource !== '*' ? ' ' + action.resource : ''})`));
+      return Promise.resolve(true);
     }
     if (!process.stdin.isTTY) {
       // non-interactive: allow reads only
@@ -196,6 +213,7 @@ export async function runInteractive(opts = {}) {
         resolve(true);
         return;
       }
+      rl?.setPrompt(''); // no stray prompt glyph while answering
       console.log('');
       console.log(c.yellow('  ┌─ approval needed ') + c.yellow('─'.repeat(Math.max(4, width() - 24))));
       for (const l of actionSummary(action).split('\n')) {
@@ -211,6 +229,19 @@ export async function runInteractive(opts = {}) {
           if (a === 'a' || a === 'always') {
             if (action.kind === 'shell') settings.autoApproveShell = true;
             if (action.kind === 'write') settings.autoApproveWrite = true;
+            // persist like opencode's "always" → a lasting allow rule
+            try {
+              const perms = state.cfg.permissions || { default: 'ask', rules: [] };
+              state.cfg.permissions = {
+                ...perms,
+                rules: [...(perms.rules || []), { action: permAction, resource: '*', effect: 'allow' }],
+              };
+              import('./config.js').then(({ saveProjectConfig }) =>
+                saveProjectConfig({ permissions: state.cfg.permissions }, state.cwd)
+              );
+            } catch {
+              /* config save is best-effort */
+            }
             resolve(true);
           } else if (a === 'q') {
             state.quitting = true;
@@ -223,12 +254,169 @@ export async function runInteractive(opts = {}) {
     });
   };
 
+  // ---- question tool (opencode question/answer flow) ----
+  const askOneQuestion = (q) =>
+    new Promise((resolve) => {
+      rl?.setPrompt(''); // no stray prompt glyph while answering
+      console.log('');
+      console.log(c.cyan(`  ? ${q.question}`));
+      (q.options || []).forEach((o, i) => console.log(`    ${c.bold(String(i + 1))}. ${o}`));
+      console.log(c.dim(`    t. type your own${q.multiple ? '  ·  separate multiple with commas' : ''}  ·  q. skip`));
+      console.log(`  ${c.bold('answer')}: `, '');
+      rl?.resume();
+      pendingQuestion = { q, resolve };
+    });
+
+  const parseQuestionAnswer = (q, line) => {
+    const raw = String(line || '').trim();
+    if (!raw || raw.toLowerCase() === 'q') return null;
+    const options = q.options || [];
+    const picks = raw
+      .split(/[,\s]+/)
+      .filter(Boolean)
+      .map((t) => {
+        if (/^\d+$/.test(t) && options[Number(t) - 1]) return options[Number(t) - 1];
+        if (t.toLowerCase() === 't') return null;
+        return t;
+      })
+      .filter((v) => v != null);
+    if (picks.length) return picks;
+    return [raw.replace(/^[t,?\s]+/, '') || raw];
+  };
+
+  const askQuestions = async (questions) => {
+    if (!process.stdin.isTTY) return null;
+    const answers = [];
+    for (const q of questions.slice(0, 6)) {
+      const a = await askOneQuestion(q);
+      if (a == null) return null;
+      answers.push(a);
+    }
+    return answers;
+  };
+
   // ---- main loop ----
+  const describeCommandName = (n) => {
+    const bare = n.replace(/^\//, '');
+    const b = COMMANDS.find((x) => x.name === bare);
+    if (b) return b.desc || '';
+    const e = state.extras.find((x) => x.name === bare);
+    return e?.description || '';
+  };
+
+  // project file list for @mentions popup (built once, capped)
+  let fileListCache = null;
+  const projectFileList = () => {
+    if (fileListCache) return fileListCache;
+    const out = [];
+    const ignore = new Set(['.git', 'node_modules', 'dist', 'build', 'out', '.next', '.cache', '__pycache__', '.venv', 'coverage']);
+    const walk = (dir, rel, depth) => {
+      if (depth < 0 || out.length >= 8000) return;
+      let entries = [];
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        if (out.length >= 8000) return;
+        if (ignore.has(e.name)) continue;
+        const r = rel ? `${rel}/${e.name}` : e.name;
+        if (e.isDirectory()) walk(path.join(dir, e.name), r, depth - 1);
+        else if (e.isFile()) out.push(r);
+      }
+    };
+    walk(state.root, '', 6);
+    fileListCache = out;
+    return out;
+  };
+
+  const filePopupHits = (prefix) => {
+    const p = prefix.toLowerCase();
+    const all = projectFileList();
+    const starts = all.filter((f) => f.toLowerCase().startsWith(p)).slice(0, 6);
+    const pool = starts.length ? starts : all.filter((f) => f.toLowerCase().includes(p)).slice(0, 6);
+    return pool.map((f) => {
+      let size = '';
+      try {
+        const kb = fs.statSync(path.join(state.root, f)).size / 1024;
+        size = kb >= 1024 ? `${(kb / 1024).toFixed(1)}MB` : `${kb.toFixed(1)}kB`;
+      } catch {
+        /* race */
+      }
+      return { label: '@' + f, desc: size };
+    });
+  };
+
+  const commandPopupHits = (line) => {
+    const head = line.split(/\s+/)[0] || '/';
+    if (head.includes(' ') || line.trimEnd() !== line) return [];
+    const lower = head.toLowerCase();
+    const names = [
+      ...COMMANDS.map((x) => '/' + x.name),
+      ...state.extras.map((x) => '/' + x.name),
+    ].filter((n, i, a) => a.indexOf(n) === i && n.startsWith(lower));
+    return names.slice(0, 6).map((n) => ({ label: n, desc: describeCommandName(n) }));
+  };
+
+  // ---- live completion popup (opencode-style palette) ----
+  // math: input row R, cursor col C = rl.getCursorPos().cols (includes prompt width).
+  // show writes rows at R+1.. via \r\n then moves back up; hide clears from the row
+  // below the input down (never touching the input row) and restores (R, C).
+  let popupRows = 0;
+  const hidePopup = () => {
+    if (!popupRows || !process.stdout.isTTY || !rl) {
+      popupRows = 0;
+      return;
+    }
+    const C = rl.getCursorPos().cols;
+    process.stdout.write(`\x1b[1B\r\x1b[0J\x1b[1A\x1b[${C}C`);
+    popupRows = 0;
+  };
+  const showPopup = (items) => {
+    if (!process.stdout.isTTY || busy || pendingApproval || pendingQuestion) return;
+    hidePopup();
+    if (!items?.length) return;
+    if (rl.cursor !== rl.line.length) return; // only when typing at the end
+    const cols = process.stdout.columns || 80;
+    const C = rl.getCursorPos().cols;
+    if (C >= cols - 12) return; // don't fight wrapped input
+    const rows = items.slice(0, 6);
+    const body = rows
+      .map((it) => {
+        const label = String(it.label).padEnd(24).slice(0, 24);
+        const desc = c.dim(String(it.desc || '').slice(0, Math.max(10, cols - 34)));
+        return `  ${hex(label, '#4E8CFF')}${desc}`;
+      })
+      .join('\r\n');
+    process.stdout.write('\r\n' + body);
+    popupRows = rows.length;
+    process.stdout.write(`\x1b[${popupRows}A\r\x1b[${C}C`);
+  };
+
+  // runs BEFORE readline's internal key handler (registration order) so the popup
+  // is always gone before any internal refresh does its own clearScreenDown
+  process.stdin.on('keypress', hidePopup);
+  process.stdout.on('resize', () => {
+    popupRows = 0;
+  });
+
   const rlInterface = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     prompt: '',
     completer: (line) => {
+      // @file completion
+      const at = line.match(/(?:^|\s)@([\w./-]*)$/);
+      if (at && !line.startsWith('/')) {
+        const hits = filePopupHits(at[1]);
+        if (hits.length === 1) return [[hits[0].label], line];
+        if (hits.length > 1) {
+          showPopup(hits);
+          return [[], line];
+        }
+        return [[], line];
+      }
       if (!line.startsWith('/')) return [[], line];
       const parts = line.split(/\s+/);
       if (parts.length === 1) {
@@ -237,7 +425,12 @@ export async function runInteractive(opts = {}) {
           .map((x) => '/' + x.name)
           .filter((n) => n.startsWith(parts[0].toLowerCase()));
         const merged = [...new Set([...hits, ...extraHits])];
-        return [merged.length ? merged : [], line];
+        if (merged.length === 1) return [[merged[0]], line];
+        if (merged.length > 1) {
+          showPopup(merged.map((n) => ({ label: n, desc: describeCommandName(n) })));
+          return [[], line];
+        }
+        return [[], line];
       }
       if (/^\/(model|provider|skill)/.test(parts[0])) {
         const pool =
@@ -255,8 +448,22 @@ export async function runInteractive(opts = {}) {
   rl = rlInterface;
 
   const promptLine = () => {
-    const badge = hex('❯', '#76B900');
-    process.stdout.write(`${badge} `);
+    // opencode-style status footer above the prompt
+    if (process.stdout.isTTY) {
+      const chars = state.messages.reduce((n, m) => n + (typeof m.content === 'string' ? m.content.length : 0), 0);
+      const tok = Math.round(chars / 4);
+      console.log(
+        c.dim(
+          `  ${state.prov.id}/${state.model} · ${state.agent} · ~${tok} tok · ${state.messages.filter((m) => m.role !== 'system').length} msgs` +
+            (state.todos.filter((t) => t.status === 'in_progress').length
+              ? ` · ${state.todos.filter((t) => t.status === 'in_progress').length} in progress`
+              : '')
+        )
+      );
+    }
+    // native readline prompt (ANSI-aware width → correct cursor math for the popup)
+    rl.setPrompt(hex('❯', '#76B900') + ' ');
+    rl.prompt();
   };
 
   const printAssistantHeader = () => {
@@ -274,7 +481,10 @@ export async function runInteractive(opts = {}) {
       s.model = state.model;
       if (!s.title) {
         const firstUser = s.messages.find((m) => m.role === 'user');
-        if (firstUser?.content) s.title = String(firstUser.content).replace(/\s+/g, ' ').slice(0, 60);
+        const rawTitle = Array.isArray(firstUser?.content)
+          ? firstUser.content.find((p) => p.type === 'text')?.text
+          : firstUser?.content;
+        if (rawTitle) s.title = String(rawTitle).replace(/\s+/g, ' ').slice(0, 60);
       }
       saveSession(s, { project: true, cwd });
     } catch {
@@ -348,9 +558,23 @@ export async function runInteractive(opts = {}) {
     }
 
     // ---- chat turn ----
+    // @file mentions (opencode-style): inline text files, attach images
+    let images = [];
+    if (!text.startsWith('/')) {
+      const mentioned = expandMentions(text, state.root);
+      text = mentioned.text;
+      images = mentioned.images;
+      if (mentioned.files.length) {
+        console.log(c.dim(`  @ attached ${mentioned.files.join(', ')}`));
+      }
+      if (images.length) {
+        console.log(c.dim(`  @ attached image ${images.map((i) => i.rel).join(', ')}`));
+      }
+    }
+
     busy = true;
     abort = new AbortController();
-    state.messages.push({ role: 'user', content: text });
+    state.messages.push({ role: 'user', content: buildContent(text, images) });
 
     // skill suggestion hint
     const hints = suggestSkills(state.skills, text);
@@ -361,8 +585,10 @@ export async function runInteractive(opts = {}) {
     printAssistantHeader();
     const renderer = new StreamRenderer();
     const spinner = settings.stream ? new Spinner('thinking…') : null;
+    const turnStart = Date.now();
     let anyText = false;
     let err = null;
+    let turnStats = null;
 
     try {
       for await (const ev of runTurn({
@@ -375,6 +601,14 @@ export async function runInteractive(opts = {}) {
           temperature: state.cfg.temperature,
           maxTokens: state.cfg.maxTokens,
           approve: askApproval,
+          askQuestions,
+          skills: state.skills,
+          get todos() {
+            return state.todos;
+          },
+          set todos(v) {
+            state.todos = v;
+          },
         },
         signal: abort.signal,
       })) {
@@ -399,6 +633,7 @@ export async function runInteractive(opts = {}) {
           err = ev.message;
         } else if (ev.type === 'done') {
           spinner?.stop();
+          turnStats = ev;
         }
       }
     } catch (e) {
@@ -414,6 +649,13 @@ export async function runInteractive(opts = {}) {
       if (/ECONNREFUSED|ENOTFOUND|fetch failed|timed? ?out/i.test(err)) {
         console.log(c.dim('    hint: network issue or local server down — try /doctor'));
       }
+    }
+    // opencode-style turn footer: steps · tokens · duration
+    if (turnStats && !err) {
+      const secs = ((Date.now() - turnStart) / 1000).toFixed(1);
+      const u = turnStats.usage || {};
+      const tok = u.total_tokens ?? (u.prompt_tokens ?? 0) + (u.completion_tokens ?? 0);
+      console.log(c.dim(`  ${c.green('done')} ${turnStats.steps} step${turnStats.steps === 1 ? '' : 's'}${tok ? ` · ${tok.toLocaleString()} tok` : ''} · ${secs}s`));
     }
     console.log('');
     persist();
@@ -436,11 +678,48 @@ export async function runInteractive(opts = {}) {
   };
 
   rlInterface.on('line', (line) => {
+    // clearLine left the cursor at col 0 of the row below the input — the popup
+    // rows are still on screen; clear them from here down (input row untouched)
+    if (popupRows && process.stdout.isTTY) {
+      process.stdout.write('\x1b[0J');
+      popupRows = 0;
+    }
     if (pendingApproval) {
       pendingApproval.resolve(line);
       return;
     }
+    if (pendingQuestion) {
+      const { q, resolve } = pendingQuestion;
+      pendingQuestion = null;
+      resolve(parseQuestionAnswer(q, line));
+      return;
+    }
+    if (pendingUpdate) {
+      const { resolve } = pendingUpdate;
+      pendingUpdate = null;
+      resolve(line);
+      return;
+    }
     enqueue(line);
+  });
+
+  // live popup while typing /command or @file (opencode palette).
+  // registered AFTER readline's handler → runs with updated rl.line/rl.cursor.
+  process.stdin.on('keypress', (str, key) => {
+    if (key?.name === 'return' || key?.name === 'enter') return; // 'line' handler clears it
+    if (!process.stdout.isTTY || busy || pendingApproval || pendingQuestion) return;
+    if (rl.cursor !== rl.line.length) return; // pre-hide already cleared; mid-line edits: no popup
+    const line = rl.line;
+    if (line.startsWith('/')) {
+      showPopup(commandPopupHits(line));
+      return;
+    }
+    const at = line.match(/(?:^|\s)@([\w./-]*)$/);
+    if (at) {
+      showPopup(filePopupHits(at[1]));
+      return;
+    }
+    hidePopup();
   });
 
   rlInterface.on('close', () => {
@@ -463,6 +742,37 @@ export async function runInteractive(opts = {}) {
     }
   });
 
+  // ---- launch-time update check (best-effort; never blocks on a dead network) ----
+  const maybeAskUpdate = async () => {
+    try {
+      if (!process.stdin.isTTY) return;
+      if (opts['no-update-check'] || opts.noUpdateCheck) return;
+      if (process.env.NULLX11_NO_UPDATE_CHECK) return;
+      if (state.cfg.updateCheck === false) return;
+      const info = await checkForUpdate({ timeout: 2000 });
+      if (!info?.updateAvailable) return;
+      console.log('');
+      console.log(c.yellow('  ! update available') + c.dim(`  ${info.current} → ${info.latest}`));
+      console.log(c.dim(`    ${info.url}`));
+      console.log(`  ${c.bold('[y]')}es update now (runs the installer)   ${c.bold('[n]')}o / Enter — ask again next launch`);
+      const answer = await new Promise((resolve) => {
+        pendingUpdate = { resolve };
+        rl?.resume?.();
+      });
+      pendingUpdate = null;
+      if (/^y(es)?$/i.test(String(answer || '').trim())) {
+        console.log(c.dim('  running installer…'));
+        const code = await runInstaller();
+        if (code === 0) console.log(c.green('  updated — restart nullx11code to pick up the new version'));
+        else console.log(c.red(`  installer exited ${code}`) + c.dim(` — run manually: ${info.install}`));
+      } else {
+        console.log(c.dim('  skipped — /version checks again anytime'));
+      }
+    } catch {
+      /* update checks are best-effort */
+    }
+  };
+
   if (opts.prompt) {
     // initial prompt given on the command line
     await handleUserInput(opts.prompt);
@@ -476,6 +786,7 @@ export async function runInteractive(opts = {}) {
       rlInterface.close();
     }
   } else {
+    await maybeAskUpdate();
     promptLine();
   }
 

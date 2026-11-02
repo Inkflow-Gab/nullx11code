@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 export const APP_NAME = 'nullx11code';
 
 export function globalDir() {
@@ -81,6 +81,8 @@ const DEFAULTS = {
   skills: { dirs: [], enabled: [] },
   commands: { dirs: [] }, // extra slash-command folders (.nullx11/*.md auto-detected anyway)
   approvals: { shell: true, write: true },
+  permissions: { default: 'ask', rules: [] }, // opencode-style allow/deny/ask rules
+  updateCheck: true, // check GitHub for a newer version at launch and ask
   providers: {}, // { customId: { baseUrl, apiKey, name } }
   port: 7860,
   host: '0.0.0.0',
@@ -114,6 +116,13 @@ export function loadConfig(cwd = process.cwd()) {
       ...DEFAULTS.approvals,
       ...(globalCfg.approvals || {}),
       ...(projCfg.approvals || {}),
+    },
+    permissions: {
+      ...DEFAULTS.permissions,
+      ...(globalCfg.permissions || {}),
+      ...(projCfg.permissions || {}),
+      // project rules replace global rules entirely when present (explicit beats inherited)
+      rules: projCfg.permissions?.rules ?? globalCfg.permissions?.rules ?? [],
     },
     providers: { ...(globalCfg.providers || {}), ...(projCfg.providers || {}) },
     _root: root,

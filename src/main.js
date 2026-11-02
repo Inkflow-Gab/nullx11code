@@ -30,6 +30,7 @@ ${c.bold('OPTIONS')}
   --provider <id>              nvidia | groq | cerebras | openrouter | gemini | mistral | github | ollama | ...
   --model <id|auto>            model id (auto = best free pick)
   --no-color                   disable ANSI colors
+  --no-update-check            skip the launch-time GitHub update check
   -y, --yes                    auto-approve tool actions (print mode)
   --resume [id]                resume a saved session
   -v, --version                version
@@ -53,6 +54,7 @@ function parseArgs(argv) {
     else if (a === '--port') opts.port = Number(argv[++i]);
     else if (a === '--host') opts.host = argv[++i];
     else if (a === '--no-color') opts.noColor = true;
+    else if (a === '--no-update-check') opts['no-update-check'] = true;
     else if (a === '-y' || a === '--yes') opts.yes = true;
     else if (a === '--resume') {
       const next = argv[i + 1];
@@ -81,14 +83,23 @@ export async function main(argv) {
   }
 
   if (cmd === 'update') {
-    console.log([
-      c.bold('Update nullx11code'),
-      '',
+    const { checkForUpdate, INSTALL_CMD } = await import('./update.js');
+    const info = await checkForUpdate({ timeout: 3000 });
+    const lines = [c.bold('Update nullx11code'), ''];
+    if (info?.updateAvailable) {
+      lines.push(c.green(`  ${info.current} → ${info.latest} available`), '');
+    } else if (info) {
+      lines.push(c.dim(`  up to date (local ${info.current} · latest ${info.latest})`), '');
+    } else {
+      lines.push(c.dim('  update check unavailable (offline or rate-limited)'), '');
+    }
+    lines.push(
       `  ${c.cyan('npm i -g https://codeload.github.com/Inkflow-Gab/nullx11code/tar.gz/refs/heads/main')}`,
       '',
       c.dim('or re-run the installer:'),
-      `  ${c.cyan('curl -fsSL https://raw.githubusercontent.com/Inkflow-Gab/nullx11code/main/install.sh | sh')}`,
-    ].join('\n'));
+      `  ${c.cyan(INSTALL_CMD)}`
+    );
+    console.log(lines.join('\n'));
     return;
   }
 

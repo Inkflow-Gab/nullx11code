@@ -7,7 +7,7 @@ const USER_SVG = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" st
 const TOOL_SVG = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg>`;
 
 const state = {
-  version: '0.1.0',
+  version: '0.2.0',
   providers: [],
   provider: null,
   models: [],
@@ -18,7 +18,19 @@ const state = {
   messages: [],
   busy: false,
   sessionId: null,
+  abort: null,
+  cmdCache: null,
+  pendingImages: [],
+  slashItems: [],
+  slashIdx: 0,
 };
+
+/** text portion of a (possibly multimodal) message content */
+function contentText(c) {
+  if (typeof c === 'string') return c;
+  if (Array.isArray(c)) return c.filter((p) => p && p.type === 'text').map((p) => p.text).join('\n');
+  return String(c ?? '');
+}
 
 /* ═══════════ helpers ═══════════ */
 
@@ -49,7 +61,7 @@ function escapeHtml(s) {
 function renderMarkdown(src) {
   const codeBlocks = [];
   let text = String(src).replace(/```(\w*)\n?([\s\S]*?)(?:```|$)/g, (_, lang, code) => {
-    codeBlocks.push(code.replace(/\n$/, ''));
+    codeBlocks.push({ lang: lang || '', code: code.replace(/\n$/, '') });
     return `\n%%CODE${codeBlocks.length - 1}%%\n`;
   });
   text = escapeHtml(text);
@@ -78,7 +90,12 @@ function renderMarkdown(src) {
     if (codeMatch) {
       flushPara();
       closeList();
-      out.push(`<pre><code>${codeBlocks[+codeMatch[1]]}</code></pre>`);
+      const blk = codeBlocks[+codeMatch[1]];
+      out.push(
+        `<div class="code-wrap"><div class="code-bar"><span class="code-lang">${escapeHtml(blk.lang)}</span>` +
+          `<button type="button" class="code-copy">copy</button></div>` +
+          `<pre><code>${escapeHtml(blk.code)}</code></pre></div>`
+      );
       continue;
     }
     const h = line.match(/^(#{1,4})\s+(.*)$/);
@@ -165,10 +182,10 @@ const TYPE_SCRIPTS = {
     { t: 'env', k: 'package', v: 'npm 10.9.8', ok: true },
     { t: 'env', k: 'platform', v: 'linux-x64 · zero npm dependencies', ok: true },
     { t: 'status', state: 'resolve', text: '02/07 RESOLVE' },
-    { t: 'log', msg: 'release pinned — nullx11code v0.1.0', cls: 'info' },
+    { t: 'log', msg: 'release pinned — nullx11code v0.2.0', cls: 'info' },
     { t: 'log', msg: 'manifest ok · 71 files · 1.40 MB', cls: 'dim' },
     { t: 'status', state: 'download', text: '03/07 TRANSFER' },
-    { t: 'download', name: 'nullx11code-0.1.0.tar.gz', total: 1.4, ms: 2200 },
+    { t: 'download', name: 'nullx11code-0.2.0.tar.gz', total: 1.4, ms: 2200 },
     { t: 'status', state: 'verify', text: '04/07 VERIFY' },
     { t: 'log', msg: 'sha256 9f3c1e…a7b2 matches manifest ✓', cls: 'ok' },
     { t: 'status', state: 'extract', text: '05/07 EXTRACT' },
@@ -191,7 +208,7 @@ const TYPE_SCRIPTS = {
     { t: 'status', state: 'resolve', text: '02/06 RESOLVE' },
     { t: 'log', msg: 'resolving tarball refs/heads/main', cls: 'info' },
     { t: 'status', state: 'download', text: '03/06 TRANSFER' },
-    { t: 'download', name: 'nullx11code-0.1.0.tgz', total: 1.4, ms: 1700 },
+    { t: 'download', name: 'nullx11code-0.2.0.tgz', total: 1.4, ms: 1700 },
     { t: 'status', state: 'verify', text: '04/06 VERIFY' },
     { t: 'log', msg: 'sha256 ok · no transitive deps', cls: 'ok' },
     { t: 'status', state: 'link', text: '05/06 LINK' },
@@ -645,6 +662,16 @@ function addMessage(role, content) {
   state.messages.push({ role, content });
 }
 
+function userBubbleHtml(content) {
+  const text = contentText(content);
+  let html = escapeHtml(text);
+  if (Array.isArray(content)) {
+    const imgs = content.filter((p) => p && p.type === 'image_url');
+    html += imgs.map((p) => `<img class="msg-img" src="${escapeHtml(p.image_url?.url || '')}" alt="attachment">`).join('');
+  }
+  return html;
+}
+
 function renderMessages() {
   const box = $('#messages');
   if (!state.messages.length) {
@@ -655,8 +682,9 @@ function renderMessages() {
   box.innerHTML = state.messages
     .map((m) => {
       const avatar = m.role === 'user' ? USER_SVG : `<img src="/assets/icons/app-icon.svg" width="17" height="17" alt="">`;
-      const body = m.role === 'user' ? escapeHtml(m.content) : renderMarkdown(m.content || '');
-      return `<div class="msg ${m.role}"><div class="avatar">${avatar}</div><div class="bubble">${body}</div></div>`;
+      const body = m.role === 'user' ? userBubbleHtml(m.content) : renderMarkdown(contentText(m.content));
+      const copy = m.role === 'assistant' ? `<button type="button" class="bubble-copy" title="Copy">copy</button>` : '';
+      return `<div class="msg ${m.role}"><div class="avatar">${avatar}</div><div class="bubble">${body}${copy}</div></div>`;
     })
     .join('');
   scrollBottom();
@@ -680,10 +708,26 @@ function appendLive(role) {
   const div = document.createElement('div');
   div.className = `msg ${role}`;
   const avatar = role === 'user' ? USER_SVG : `<img src="/assets/icons/app-icon.svg" width="17" height="17" alt="">`;
+  const copy = role === 'assistant' ? `<button type="button" class="bubble-copy" title="Copy">copy</button>` : '';
   div.innerHTML = `<div class="avatar">${avatar}</div><div class="bubble"></div>`;
+  if (copy) div.querySelector('.bubble').insertAdjacentHTML('beforeend', copy);
   box.appendChild(div);
   scrollBottom();
   return div.querySelector('.bubble');
+}
+
+/** system-style note (command output, permission notices) */
+function appendNotice(text) {
+  const box = $('#messages');
+  box.querySelector('.empty-state')?.remove();
+  const div = document.createElement('div');
+  div.className = 'msg notice';
+  div.innerHTML = `<div class="avatar">${TOOL_SVG}</div><div class="bubble"><div class="notice-body">${escapeHtml(
+    String(text).replace(/\x1b\[[0-9;]*m/g, '')
+  )}</div></div>`;
+  box.appendChild(div);
+  scrollBottom();
+  return div.querySelector('.notice-body');
 }
 
 function appendToolEvent(name, args = {}) {
@@ -700,23 +744,56 @@ function appendToolEvent(name, args = {}) {
   return div.querySelector('.tool-event');
 }
 
-async function sendMessage(text) {
-  if (state.busy || !text.trim()) return;
+async function sendMessage(input, opts = {}) {
+  if (state.busy || input == null) return;
   state.busy = true;
   $('#send').disabled = true;
+  $('#stop').classList.remove('hidden');
+  $('#regen').classList.add('hidden');
   $('#empty-state')?.remove();
 
-  addMessage('user', text);
+  // fresh sends: expand @mentions, merge pasted images into multimodal content
+  let payload = input;
+  if (!opts.reuse) {
+    if (typeof payload === 'string' && payload.includes('@')) {
+      try {
+        const ex = await api('/api/expand', { method: 'POST', body: { text: payload } });
+        if (ex && typeof ex.text === 'string') {
+          payload = ex.text;
+          if (ex.files?.length) toast(`attached ${ex.files.join(', ')}`, 1800);
+          const fileImgs = (ex.images || []).map((im) => ({ type: 'image_url', image_url: { url: im.dataUrl } }));
+          if (fileImgs.length) payload = [{ type: 'text', text: payload }, ...fileImgs];
+        }
+      } catch {
+        /* expansion is best-effort */
+      }
+    }
+    if (state.pendingImages.length) {
+      const imgs = state.pendingImages.map((im) => ({ type: 'image_url', image_url: { url: im.dataUrl } }));
+      payload =
+        typeof payload === 'string'
+          ? [{ type: 'text', text: payload }, ...imgs]
+          : [...(Array.isArray(payload) ? payload : [{ type: 'text', text: String(payload) }]), ...imgs];
+      state.pendingImages = [];
+      renderPasteChips();
+    }
+    addMessage('user', payload);
+  } else {
+    addMessage('user', payload);
+  }
+
   const userBubble = appendLive('user');
-  userBubble.textContent = text;
+  userBubble.innerHTML = userBubbleHtml(payload);
 
   const bubble = appendLive('assistant');
   bubble.innerHTML = `<span class="typing"><i></i><i></i><i></i></span>`;
 
   let acc = '';
   let err = null;
+  let stopped = false;
   const pendingEvents = [];
 
+  state.abort = new AbortController();
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
@@ -727,6 +804,7 @@ async function sendMessage(text) {
         messages: state.messages.filter((m) => m.role === 'user' || m.role === 'assistant'),
         approveTools: true,
       }),
+      signal: state.abort.signal,
     });
     if (!res.ok || !res.body) {
       const data = await res.json().catch(() => ({}));
@@ -771,6 +849,15 @@ async function sendMessage(text) {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ id: ev.id, approved }),
           });
+        } else if (ev.type === 'question') {
+          const answers = await askQuestion(ev.questions || []);
+          await fetch('/api/answer', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: ev.id, answers }),
+          });
+        } else if (ev.type === 'notice') {
+          appendNotice(ev.text || '');
         } else if (ev.type === 'error') {
           err = ev.message;
         } else if (ev.type === 'done') {
@@ -779,10 +866,11 @@ async function sendMessage(text) {
       }
     }
   } catch (e) {
-    err = e.message;
+    if (e.name === 'AbortError' || state.abort?.signal.aborted) stopped = true;
+    else err = e.message;
   }
 
-  bubble.innerHTML = acc ? renderMarkdown(acc) : err ? '' : '<em>(no response)</em>';
+  bubble.innerHTML = acc ? renderMarkdown(acc) : err ? '' : stopped ? '<em>(stopped)</em>' : '<em>(no response)</em>';
   if (err) {
     const note = document.createElement('div');
     note.className = 'error-note';
@@ -792,7 +880,10 @@ async function sendMessage(text) {
 
   if (acc) addMessage('assistant', acc);
   state.busy = false;
+  state.abort = null;
   $('#send').disabled = false;
+  $('#stop').classList.add('hidden');
+  if (state.messages.some((m) => m.role === 'user')) $('#regen').classList.remove('hidden');
   scrollBottom();
   refreshSessions();
 }
@@ -821,6 +912,214 @@ function askApproval(action) {
     };
     $('#ap-yes').onclick = () => done(true);
     $('#ap-no').onclick = () => done(false);
+  });
+}
+
+/* question tool modal (opencode question/answer flow) */
+function askQuestion(questions) {
+  return new Promise((resolve) => {
+    const modal = $('#question-modal');
+    const answers = [];
+    let idx = 0;
+    let selected = new Set();
+
+    const cleanup = () => {
+      $('#q-answer').onclick = null;
+      $('#q-skip').onclick = null;
+      document.removeEventListener('keydown', onKey, true);
+    };
+
+    const onKey = (e) => {
+      if (modal.classList.contains('hidden')) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        modal.classList.add('hidden');
+        cleanup();
+        resolve(null); // dismissed
+      } else if (e.key === 'Enter' && document.activeElement === $('#q-free')) {
+        e.preventDefault();
+        $('#q-answer').onclick?.();
+      }
+    };
+
+    const advance = (val) => {
+      answers.push(val);
+      idx++;
+      if (idx >= questions.length) {
+        modal.classList.add('hidden');
+        cleanup();
+        resolve(answers);
+      } else {
+        showCurrent();
+      }
+    };
+
+    const showCurrent = () => {
+      const q = questions[idx] || {};
+      selected = new Set();
+      $('#q-text').textContent = q.question || '';
+      const opts = q.options || [];
+      const box = $('#q-options');
+      box.innerHTML = opts
+        .map((o, i) => `<button type="button" class="q-opt" data-i="${i}">${escapeHtml(o)}</button>`)
+        .join('');
+      $('#q-free').value = '';
+      box.querySelectorAll('.q-opt').forEach((btn) => {
+        btn.onclick = () => {
+          const i = +btn.dataset.i;
+          if (q.multiple) {
+            if (selected.has(i)) {
+              selected.delete(i);
+              btn.classList.remove('on');
+            } else {
+              selected.add(i);
+              btn.classList.add('on');
+            }
+          } else {
+            selected = new Set([i]);
+            box.querySelectorAll('.q-opt').forEach((b) => b.classList.toggle('on', b === btn));
+          }
+        };
+      });
+      modal.classList.remove('hidden');
+      $('#q-free').focus();
+    };
+
+    $('#q-answer').onclick = () => {
+      const free = $('#q-free').value.trim();
+      if (free) {
+        advance(free);
+        return;
+      }
+      if (!selected.size) {
+        advance(null);
+        return;
+      }
+      const q = questions[idx] || {};
+      const picks = [...selected].sort().map((i) => (q.options || [])[i]);
+      advance(q.multiple ? picks : picks[0]);
+    };
+    $('#q-skip').onclick = () => advance(null);
+    document.addEventListener('keydown', onKey, true);
+    showCurrent();
+  });
+}
+
+/* ═════════ slash command palette ═════════ */
+
+async function loadCommands() {
+  if (!state.cmdCache) {
+    try {
+      state.cmdCache = await api('/api/commands');
+    } catch {
+      state.cmdCache = [];
+    }
+  }
+  return state.cmdCache;
+}
+
+function hideSlash() {
+  $('#slash-popup').classList.add('hidden');
+  state.slashItems = [];
+  state.slashIdx = 0;
+}
+
+function updateSlash() {
+  const v = $('#input').value;
+  if (!v.startsWith('/') || v.includes(' ')) {
+    hideSlash();
+    return;
+  }
+  const q = v.toLowerCase();
+  loadCommands().then((list) => {
+    const cur = $('#input').value;
+    if (!cur.startsWith('/') || cur.includes(' ')) return; // stale async
+    const hits = list.filter((c) => ('/' + c.name).startsWith(q)).slice(0, 8);
+    if (!hits.length) {
+      hideSlash();
+      return;
+    }
+    state.slashItems = hits;
+    if (state.slashIdx >= hits.length) state.slashIdx = 0;
+    const popup = $('#slash-popup');
+    popup.innerHTML = hits
+      .map(
+        (c, i) =>
+          `<button type="button" class="slash-item${i === state.slashIdx ? ' active' : ''}" data-cmd="${escapeHtml(c.name)}">` +
+          `<b>/${escapeHtml(c.name)}</b><span>${escapeHtml(c.desc)}</span>` +
+          `${c.kind === 'extra' ? '<em>custom</em>' : ''}</button>`
+      )
+      .join('');
+    popup.classList.remove('hidden');
+  });
+}
+
+async function runSlash(name, args = '') {
+  hideSlash();
+  const input = $('#input');
+  input.value = '';
+  input.style.height = 'auto';
+  if (name === 'clear' || name === 'new') {
+    state.messages = [];
+    state.sessionId = null;
+    renderMessages();
+  }
+  try {
+    const res = await api('/api/command', { method: 'POST', body: { name, args } });
+    if (res.output) appendNotice(res.output);
+    if (res.model) state.model = res.model === 'auto' ? null : res.model;
+    if (res.provider && res.provider !== state.provider) {
+      state.provider = res.provider;
+      api('/api/settings', { method: 'POST', body: { provider: res.provider } }).catch(() => {});
+      renderProvStrip();
+      loadModels().catch(() => {});
+    }
+    if (res.prompt) await sendMessage(res.prompt);
+  } catch (e) {
+    appendNotice(`/${name}: ${e.message}`);
+  }
+}
+
+/* ═════════ pasted images ═════════ */
+
+function renderPasteChips() {
+  const box = $('#paste-chips');
+  if (!state.pendingImages.length) {
+    box.classList.add('hidden');
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = state.pendingImages
+    .map(
+      (im, i) =>
+        `<span class="chip"><img src="${im.dataUrl}" alt=""><button type="button" class="chip-x" data-i="${i}">&times;</button></span>`
+    )
+    .join('');
+  box.classList.remove('hidden');
+}
+
+function shrinkImage(file, max = 1280) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, max / Math.max(img.width, img.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        } catch {
+          resolve(reader.result);
+        }
+      };
+      img.onerror = () => resolve(reader.result);
+      img.src = reader.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
   });
 }
 
@@ -931,27 +1230,126 @@ function bindUI() {
     e.preventDefault();
     const input = $('#input');
     const text = input.value;
+    // any /input runs as a command (server-side, full parity)
+    if (text.trim().startsWith('/')) {
+      const trimmed = text.trim();
+      if (!trimmed.includes(' ') && state.slashItems.length && !$('#slash-popup').classList.contains('hidden')) {
+        const pick = state.slashItems[state.slashIdx] || state.slashItems[0];
+        runSlash(pick.name, '');
+      } else {
+        const [head, ...rest] = trimmed.split(/\s+/);
+        runSlash(head.replace(/^\//, ''), rest.join(' '));
+      }
+      return;
+    }
     input.value = '';
     input.style.height = 'auto';
     sendMessage(text);
+  };
+
+  $('#stop').onclick = () => state.abort?.abort();
+  $('#regen').onclick = () => {
+    if (state.busy) return;
+    let i = state.messages.length - 1;
+    while (i >= 0 && state.messages[i].role !== 'user') i--;
+    if (i < 0) return;
+    const payload = state.messages[i].content;
+    state.messages = state.messages.slice(0, i);
+    renderMessages();
+    sendMessage(payload, { reuse: true });
   };
 
   const input = $('#input');
   input.addEventListener('input', () => {
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 180) + 'px';
-    $('#ctx-hint').textContent = `${state.messages.length} msgs · ~${Math.round(state.messages.reduce((n, m) => n + (m.content || '').length, 0) / 4)} tok`;
+    $('#ctx-hint').textContent = `${state.messages.length} msgs · ~${Math.round(
+      state.messages.reduce((n, m) => n + contentText(m.content).length, 0) / 4
+    )} tok`;
+    updateSlash();
   });
   input.addEventListener('keydown', (e) => {
+    const popupOpen = !$('#slash-popup').classList.contains('hidden') && state.slashItems.length > 0;
+    if (popupOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      const n = state.slashItems.length;
+      state.slashIdx = (state.slashIdx + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+      $('#slash-popup').querySelectorAll('.slash-item').forEach((el, i) => el.classList.toggle('active', i === state.slashIdx));
+      return;
+    }
+    if (popupOpen && e.key === 'Tab') {
+      e.preventDefault();
+      const pick = state.slashItems[state.slashIdx] || state.slashItems[0];
+      input.value = '/' + pick.name + ' ';
+      hideSlash();
+      return;
+    }
+    if (e.key === 'Escape' && popupOpen) {
+      e.preventDefault();
+      hideSlash();
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       $('#composer').requestSubmit();
     }
   });
 
+  input.addEventListener('paste', async (e) => {
+    const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
+    if (!files.length) return;
+    e.preventDefault();
+    for (const file of files.slice(0, 4 - state.pendingImages.length)) {
+      const dataUrl = await shrinkImage(file);
+      if (dataUrl) state.pendingImages.push({ name: file.name, dataUrl });
+    }
+    renderPasteChips();
+  });
+
   document.addEventListener('click', (e) => {
     const s = e.target.closest('.suggestion');
-    if (s) sendMessage(s.textContent);
+    if (s) {
+      sendMessage(s.textContent);
+      return;
+    }
+    const codeCopy = e.target.closest('.code-copy');
+    if (codeCopy) {
+      const code = codeCopy.closest('.code-wrap')?.querySelector('code');
+      if (code) {
+        navigator.clipboard?.writeText(code.textContent).then(
+          () => {
+            codeCopy.textContent = 'copied';
+            setTimeout(() => (codeCopy.textContent = 'copy'), 1200);
+          },
+          () => toast('copy failed')
+        );
+      }
+      return;
+    }
+    const bubbleCopy = e.target.closest('.bubble-copy');
+    if (bubbleCopy) {
+      const bubble = bubbleCopy.closest('.bubble');
+      if (bubble) {
+        navigator.clipboard?.writeText(bubble.innerText).then(
+          () => toast('copied'),
+          () => toast('copy failed')
+        );
+      }
+      return;
+    }
+    const slashItem = e.target.closest('.slash-item');
+    if (slashItem) {
+      const args = $('#input').value.trim().split(/\s+/).slice(1).join(' ');
+      runSlash(slashItem.dataset.cmd, args);
+      return;
+    }
+    const chipX = e.target.closest('.chip-x');
+    if (chipX) {
+      state.pendingImages.splice(+chipX.dataset.i, 1);
+      renderPasteChips();
+      return;
+    }
+    if (!e.target.closest('.composer')) hideSlash();
   });
 }
 
@@ -978,6 +1376,12 @@ async function boot() {
     renderSkills();
     renderSessions();
     if (state.provider) await loadModels();
+    // newer version on GitHub? (background check — never blocks boot)
+    api('/api/update')
+      .then((info) => {
+        if (info?.updateAvailable) toast(`update ${info.latest} available — run: ${info.install}`, 9000);
+      })
+      .catch(() => {});
   } catch (e) {
     console.error(e);
     toast('failed to load state: ' + e.message, 4000);

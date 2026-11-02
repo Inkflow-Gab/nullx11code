@@ -7,6 +7,8 @@ import { allProviders, resolveProvider, listModels, guessModel } from './provide
 import { discoverSkills, setSkillEnabled, createSkill, suggestSkills } from './skills.js';
 import { listSessions, loadSession, saveSession } from './sessions.js';
 import { familyMeta } from './models.js';
+import { checkForUpdate } from './update.js';
+import { describeRules } from './permissions.js';
 
 /** Resolve /models|/model argument (#, exact id, or query) and switch to it. */
 async function switchModel(ctx, models, arg) {
@@ -61,6 +63,7 @@ export const COMMANDS = [
         helpLine('init', 'create / improve AGENTS.md instructions'),
         helpLine('review [ref]', 'review commits, branch or PR'),
         helpLine('agent [mode]', 'build (default) or plan (read-only)'),
+        helpLine('permissions', 'allow/deny rules — skip prompts for safe cmds'),
         helpLine('skills', 'manage project skills'),
         helpLine('skill on|off <n>', 'toggle one skill'),
         helpLine('new', 'start a fresh conversation'),
@@ -375,6 +378,55 @@ export const COMMANDS = [
     },
   },
   {
+    name: 'permissions',
+    args: '[add <action> <resource> <effect>|rm <#>|default <effect>]',
+    desc: 'Allow/deny rules so safe commands never prompt (opencode-style)',
+    run(ctx, args) {
+      const perms = ctx.cfg.permissions || { default: 'ask', rules: [] };
+      const parts = (args || '').trim().split(/\s+/).filter(Boolean);
+      const sub = (parts[0] || '').toLowerCase();
+
+      if (sub === 'add' && parts.length >= 4) {
+        const [, action, ...rest] = parts;
+        const effect = rest[rest.length - 1];
+        const resource = rest.slice(0, -1).join(' ').replace(/^["']|["']$/g, ''); // allow quoted resources
+        if (!['allow', 'deny', 'ask'].includes(effect)) return 'effect must be allow | deny | ask';
+        if (!['edit', 'shell', 'question', '*'].includes(action)) return 'action must be edit | shell | question | *';
+        const rules = [...(perms.rules || []), { action, resource, effect }];
+        ctx.cfg.permissions = { ...perms, rules };
+        saveProjectConfig({ permissions: ctx.cfg.permissions }, ctx.cwd);
+        return `rule added: ${c.cyan(action)} ~ ${c.cyan(resource)} → ${effect}`;
+      }
+
+      if (sub === 'rm' && parts[1] && /^\d+$/.test(parts[1])) {
+        const i = Number(parts[1]) - 1;
+        const rules = [...(perms.rules || [])];
+        if (!rules[i]) return `No rule #${parts[1]}`;
+        const [gone] = rules.splice(i, 1);
+        ctx.cfg.permissions = { ...perms, rules };
+        saveProjectConfig({ permissions: ctx.cfg.permissions }, ctx.cwd);
+        return `removed: ${gone.action} ~ ${gone.resource} → ${gone.effect}`;
+      }
+
+      if (sub === 'default' && parts[1]) {
+        if (!['allow', 'deny', 'ask'].includes(parts[1])) return 'default must be allow | deny | ask';
+        ctx.cfg.permissions = { ...perms, default: parts[1] };
+        saveProjectConfig({ permissions: ctx.cfg.permissions }, ctx.cwd);
+        return `default permission → ${parts[1]}`;
+      }
+
+      const view = describeRules(perms);
+      const rows = view.rules.map((r, i) => [String(i + 1), r.action, r.resource, r.effect === 'allow' ? c.green('allow') : r.effect === 'deny' ? c.red('deny') : c.yellow('ask')]);
+      return [
+        table(['#', 'action', 'resource', 'effect'], rows.length ? rows : [['—', '—', '—', '—']]),
+        '',
+        `default: ${view.default === 'allow' ? c.green('allow') : view.default === 'deny' ? c.red('deny') : c.yellow('ask')}`,
+        c.dim('/permissions add shell "git *" allow  ·  /permissions add edit "*" allow  ·  /permissions rm 1'),
+        c.dim('/permissions default allow   — first match wins; denies are checked before allows'),
+      ].join('\n');
+    },
+  },
+  {
     name: 'agent',
     args: '[build|plan]',
     desc: 'Switch agent mode — plan is read-only (opencode-style)',
@@ -608,9 +660,15 @@ export const COMMANDS = [
   },
   {
     name: 'version',
-    desc: 'Version info',
-    run() {
-      return `nullx11code v${VERSION} · node ${process.version} · ${process.platform}`;
+    desc: 'Version info (also checks GitHub for a newer release)',
+    async run() {
+      const base = `nullx11code v${VERSION} · node ${process.version} · ${process.platform}`;
+      const info = await checkForUpdate({ timeout: 2500 });
+      if (info?.updateAvailable) {
+        return `${base}\nupdate available: ${info.current} → ${info.latest}\n  ${info.install}`;
+      }
+      if (info) return `${base}\nup to date (latest: ${info.latest})`;
+      return `${base}\nupdate check unavailable (offline or rate-limited)`;
     },
   },
   { name: 'quit', desc: 'Exit', run(ctx) { ctx.quit(); return null; } },
