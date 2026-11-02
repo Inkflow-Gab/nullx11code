@@ -13,6 +13,7 @@ import { discoverExtras, renderExtra, resolveInvocation, commandEntries } from '
 import { actionSummary } from './tools.js';
 import { evaluate, actionForKind } from './permissions.js';
 import { expandMentions, buildContent } from './mentions.js';
+import { checkForUpdate, runInstaller } from './update.js';
 
 const BASE_PROMPT = (root, provName) => `You are nullx11code, a concise AI coding agent running in the user's terminal (also usable from mobile terminals like Termux).
 Project root: ${root}
@@ -181,6 +182,7 @@ export async function runInteractive(opts = {}) {
   // ---- approval plumbing (opencode: rules → session always → prompt) ----
   let pendingApproval = null; // { resolve }
   let pendingQuestion = null; // { q, resolve }
+  let pendingUpdate = null; // { resolve } — launch-time update question
   let rl = null;
 
   const askApproval = (action) => {
@@ -692,6 +694,12 @@ export async function runInteractive(opts = {}) {
       resolve(parseQuestionAnswer(q, line));
       return;
     }
+    if (pendingUpdate) {
+      const { resolve } = pendingUpdate;
+      pendingUpdate = null;
+      resolve(line);
+      return;
+    }
     enqueue(line);
   });
 
@@ -734,6 +742,37 @@ export async function runInteractive(opts = {}) {
     }
   });
 
+  // ---- launch-time update check (best-effort; never blocks on a dead network) ----
+  const maybeAskUpdate = async () => {
+    try {
+      if (!process.stdin.isTTY) return;
+      if (opts['no-update-check'] || opts.noUpdateCheck) return;
+      if (process.env.NULLX11_NO_UPDATE_CHECK) return;
+      if (state.cfg.updateCheck === false) return;
+      const info = await checkForUpdate({ timeout: 2000 });
+      if (!info?.updateAvailable) return;
+      console.log('');
+      console.log(c.yellow('  ! update available') + c.dim(`  ${info.current} → ${info.latest}`));
+      console.log(c.dim(`    ${info.url}`));
+      console.log(`  ${c.bold('[y]')}es update now (runs the installer)   ${c.bold('[n]')}o / Enter — ask again next launch`);
+      const answer = await new Promise((resolve) => {
+        pendingUpdate = { resolve };
+        rl?.resume?.();
+      });
+      pendingUpdate = null;
+      if (/^y(es)?$/i.test(String(answer || '').trim())) {
+        console.log(c.dim('  running installer…'));
+        const code = await runInstaller();
+        if (code === 0) console.log(c.green('  updated — restart nullx11code to pick up the new version'));
+        else console.log(c.red(`  installer exited ${code}`) + c.dim(` — run manually: ${info.install}`));
+      } else {
+        console.log(c.dim('  skipped — /version checks again anytime'));
+      }
+    } catch {
+      /* update checks are best-effort */
+    }
+  };
+
   if (opts.prompt) {
     // initial prompt given on the command line
     await handleUserInput(opts.prompt);
@@ -747,6 +786,7 @@ export async function runInteractive(opts = {}) {
       rlInterface.close();
     }
   } else {
+    await maybeAskUpdate();
     promptLine();
   }
 

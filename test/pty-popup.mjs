@@ -15,7 +15,7 @@ writeFileSync(join(dir, 'hello.txt'), 'hi\n');
 const p = spawn('script', ['-qec', `node ${join(repo, 'bin/nullx11code.js')}`, '/dev/null'], {
   cwd: dir,
   stdio: ['pipe', 'pipe', 'pipe'],
-  env: { ...process.env, MOCK_URL: '', FORCE_COLOR: '0' },
+  env: { ...process.env, MOCK_URL: '', FORCE_COLOR: '0', NULLX11_NO_UPDATE_CHECK: '1' },
 });
 
 let out = '';

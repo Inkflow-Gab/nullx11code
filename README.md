@@ -93,8 +93,10 @@ nullx11code "explain this repo"      # one-shot
 nullx11code serve                    # web UI instead
 ```
 
+On launch the CLI checks GitHub for a newer version and **asks before updating** (`y` runs the installer, `n` skips until next time). Disable with `"updateCheck": false`, `NULLX11_NO_UPDATE_CHECK=1`, or `--no-update-check`; `/version` re-checks on demand.
+
 ```
-  ▗▄▖▐▌ ▐▌ nullx11code v0.1.0
+  ▗▄▖▐▌ ▐▌ nullx11code v0.2.0
   free-first AI coding agent · terminal + web
   2 keys · 4 skills · /help for commands
   model ▌NVIDIA NIM · nvidia/llama-3.3-70b-instruct · LL Llama
@@ -313,6 +315,8 @@ Project: `.nullx11code/config.json` · Global: `~/.nullx11code/config.json`
   "temperature": 0.7,
   "skills": { "dirs": ["/path/to/skills"], "enabled": ["code-review"] },
   "approvals": { "shell": true, "write": true },
+  "permissions": { "default": "ask", "rules": [] },
+  "updateCheck": true,
   "port": 7860
 }
 ```

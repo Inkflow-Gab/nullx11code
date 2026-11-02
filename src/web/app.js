@@ -7,7 +7,7 @@ const USER_SVG = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" st
 const TOOL_SVG = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg>`;
 
 const state = {
-  version: '0.1.0',
+  version: '0.2.0',
   providers: [],
   provider: null,
   models: [],
@@ -182,10 +182,10 @@ const TYPE_SCRIPTS = {
     { t: 'env', k: 'package', v: 'npm 10.9.8', ok: true },
     { t: 'env', k: 'platform', v: 'linux-x64 · zero npm dependencies', ok: true },
     { t: 'status', state: 'resolve', text: '02/07 RESOLVE' },
-    { t: 'log', msg: 'release pinned — nullx11code v0.1.0', cls: 'info' },
+    { t: 'log', msg: 'release pinned — nullx11code v0.2.0', cls: 'info' },
     { t: 'log', msg: 'manifest ok · 71 files · 1.40 MB', cls: 'dim' },
     { t: 'status', state: 'download', text: '03/07 TRANSFER' },
-    { t: 'download', name: 'nullx11code-0.1.0.tar.gz', total: 1.4, ms: 2200 },
+    { t: 'download', name: 'nullx11code-0.2.0.tar.gz', total: 1.4, ms: 2200 },
     { t: 'status', state: 'verify', text: '04/07 VERIFY' },
     { t: 'log', msg: 'sha256 9f3c1e…a7b2 matches manifest ✓', cls: 'ok' },
     { t: 'status', state: 'extract', text: '05/07 EXTRACT' },
@@ -208,7 +208,7 @@ const TYPE_SCRIPTS = {
     { t: 'status', state: 'resolve', text: '02/06 RESOLVE' },
     { t: 'log', msg: 'resolving tarball refs/heads/main', cls: 'info' },
     { t: 'status', state: 'download', text: '03/06 TRANSFER' },
-    { t: 'download', name: 'nullx11code-0.1.0.tgz', total: 1.4, ms: 1700 },
+    { t: 'download', name: 'nullx11code-0.2.0.tgz', total: 1.4, ms: 1700 },
     { t: 'status', state: 'verify', text: '04/06 VERIFY' },
     { t: 'log', msg: 'sha256 ok · no transitive deps', cls: 'ok' },
     { t: 'status', state: 'link', text: '05/06 LINK' },
@@ -1376,6 +1376,12 @@ async function boot() {
     renderSkills();
     renderSessions();
     if (state.provider) await loadModels();
+    // newer version on GitHub? (background check — never blocks boot)
+    api('/api/update')
+      .then((info) => {
+        if (info?.updateAvailable) toast(`update ${info.latest} available — run: ${info.install}`, 9000);
+      })
+      .catch(() => {});
   } catch (e) {
     console.error(e);
     toast('failed to load state: ' + e.message, 4000);

@@ -28,6 +28,7 @@ Ideas captured while building v0.1.0. Checked = shipped, ▸ = next up, ○ = wi
 - [x] **opencode port r1**: `/setup` (easy key entry + provider table), `/models` search&switch, `/init`, `/review`, `/agent build|plan`, `$1–$9` + `` !`shell` `` command templates, `glob`/`edit`/`webfetch`/`todowrite` tools, `AGENTS.md`/`CLAUDE.md` instruction discovery, clear-on-launch
 - [x] **opencode port r2**: permission rules engine (deny → allow → default) + `/permissions` command + `[a]lways` persists an allow rule; `question`, `todoread`, `patch` (unified diff), `load_skill`, `subagent` (child session, one nesting level, `allowTools` restriction) tools; `@file` + image mentions in CLI and web; CLI status line (`provider/model · agent · tokens · msgs`) + turn footer (`steps · tok · secs`) + live `/`/`@` popup with described Tab completion; web: full slash parity via `/api/command`, question modal, stop/regenerate/copy, per-code-block copy buttons, image paste
 - [x] **Web chat upgrades**: live command palette (arrows/Tab/Enter), inline command output, approval + question modals, mid-stream stop, last-reply regenerate, clipboard copy for answers and code blocks
+- [x] **Self-update check**: launch compares local `VERSION` against GitHub (release tag → `package.json` on main), asks `[y/n]` before running the installer; `/version` re-checks; web shows a toast via `/api/update`; opt-out via `updateCheck:false` / `NULLX11_NO_UPDATE_CHECK=1` / `--no-update-check`
 
 ## Next (▸)
 

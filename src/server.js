@@ -13,6 +13,7 @@ import { evaluate, actionForKind } from './permissions.js';
 import { expandMentions } from './mentions.js';
 import { createSession, saveSession, loadSession, listSessions } from './sessions.js';
 import { runTurn } from './chat.js';
+import { checkForUpdate } from './update.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = path.join(__dirname, 'web');
@@ -129,6 +130,16 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
   webState.refreshSkills();
   webState.refreshExtras();
 
+  // background update check (result lands in /api/state; /api/update awaits it)
+  let updateInfo = null;
+  const updateCheck = () => {
+    if (cfg.updateCheck === false || process.env.NULLX11_NO_UPDATE_CHECK) {
+      return Promise.resolve(null);
+    }
+    return (updateCheck._p ??= checkForUpdate({ timeout: 3000 }).then((info) => (updateInfo = info)));
+  };
+  updateCheck(); // fire at startup
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const p = url.pathname;
@@ -186,6 +197,7 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
             },
             sessions: listSessions({ cwd, limit: 20 }),
             root: cfg._root,
+            update: updateInfo,
           });
           return;
         }
@@ -470,6 +482,11 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
             provider: webState.prov?.id ?? cfg.provider,
             agent: webState.agent,
           });
+        }
+
+        // update check (awaits the background check, cached per process)
+        if (p === '/api/update' && req.method === 'GET') {
+          return sendJSON(res, 200, (await updateCheck()) || { updateAvailable: false });
         }
 
         // expand @file mentions (and attached images) server-side

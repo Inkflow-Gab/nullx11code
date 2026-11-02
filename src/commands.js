@@ -7,6 +7,7 @@ import { allProviders, resolveProvider, listModels, guessModel } from './provide
 import { discoverSkills, setSkillEnabled, createSkill, suggestSkills } from './skills.js';
 import { listSessions, loadSession, saveSession } from './sessions.js';
 import { familyMeta } from './models.js';
+import { checkForUpdate } from './update.js';
 import { describeRules } from './permissions.js';
 
 /** Resolve /models|/model argument (#, exact id, or query) and switch to it. */
@@ -659,9 +660,15 @@ export const COMMANDS = [
   },
   {
     name: 'version',
-    desc: 'Version info',
-    run() {
-      return `nullx11code v${VERSION} · node ${process.version} · ${process.platform}`;
+    desc: 'Version info (also checks GitHub for a newer release)',
+    async run() {
+      const base = `nullx11code v${VERSION} · node ${process.version} · ${process.platform}`;
+      const info = await checkForUpdate({ timeout: 2500 });
+      if (info?.updateAvailable) {
+        return `${base}\nupdate available: ${info.current} → ${info.latest}\n  ${info.install}`;
+      }
+      if (info) return `${base}\nup to date (latest: ${info.latest})`;
+      return `${base}\nupdate check unavailable (offline or rate-limited)`;
     },
   },
   { name: 'quit', desc: 'Exit', run(ctx) { ctx.quit(); return null; } },
