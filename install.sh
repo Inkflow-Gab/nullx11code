@@ -31,7 +31,7 @@ if ! command -v npm >/dev/null 2>&1; then
   fail "npm not found — install npm (pkg install npm / apt install npm)"
 fi
 
-say "${DIM}→ fetching nullx11code ($REF, zero dependencies)${OFF}"
+say "${DIM}→ fetching nullx11code ($REF, OpenCode runtime + legacy CLI)${OFF}"
 TARBALL="https://codeload.github.com/$REPO/tar.gz/refs/heads/$REF"
 # allow tag refs via NULLX11_REF
 case "$REF" in
@@ -40,7 +40,7 @@ case "$REF" in
 esac
 
 TMP="${TMPDIR:-/tmp}/nullx11-install-$$"
-cleanup() { rm -rf "$TMP"; }
+cleanup() { rm -rf "$TMP"; rm -f "$TMP.tar.gz"; }
 trap cleanup EXIT
 
 if command -v curl >/dev/null 2>&1; then
@@ -56,13 +56,10 @@ say "${DIM}→ installing globally …${OFF}"
 if npm install -g "$TMP.tar.gz" >/dev/null 2>&1; then
   :
 else
-  # fallback: some environments block global installs — link manually
-  say "${DIM}  global install blocked → linking into ~/.local/bin${OFF}"
-  mkdir -p "$TMP/src" "$HOME/.local/bin"
-  tar -xzf "$TMP.tar.gz" -C "$TMP/src" --strip-components=1
-  ln -sf "$TMP/src/bin/nullx11code.js" "$HOME/.local/bin/nullx11code"
-  ln -sf "$TMP/src/bin/nullx11code.js" "$HOME/.local/bin/n11"
-  chmod +x "$TMP/src/bin/nullx11code.js"
+  # Use a persistent user prefix, including native runtime dependencies.
+  # Never link into $TMP: the EXIT trap removes it after installation.
+  say "${DIM}  global install blocked → installing into ~/.local${OFF}"
+  npm install -g --prefix "$HOME/.local" "$TMP.tar.gz" || fail "user install failed"
   case ":$PATH:" in
     *":$HOME/.local/bin:"*) ;;
     *) say "${DIM}  add to PATH: export PATH=\"\$HOME/.local/bin:\$PATH\"${OFF}" ;;
@@ -73,6 +70,11 @@ if command -v nullx11code >/dev/null 2>&1; then
   BIN="$(command -v nullx11code)"
   say "${GREEN}✓ nullx11code installed → $BIN${OFF}"
 else
+  if [ -x "$HOME/.local/bin/nullx11code" ]; then
+    say "${GREEN}✓ installed → $HOME/.local/bin/nullx11code${OFF}"
+    say "${DIM}  add to PATH: export PATH=\"\$HOME/.local/bin:\$PATH\"${OFF}"
+    exit 0
+  fi
   say "${RED}✗ install finished but 'nullx11code' not on PATH${OFF}"
   say "${DIM}  try: npm bin -g   (see where npm put it)${OFF}"
   exit 1

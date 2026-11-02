@@ -1,0 +1,13 @@
+/* Do not redefine native editor/terminal/theme tokens. Keep the entire native
+   application intact below a small, accessible product identity/navigation bar. */
+body{padding-top:34px!important}
+#root{height:calc(100dvh - 34px)!important;max-height:calc(100dvh - 34px)!important}
+#nullx11-native-bar{position:fixed;inset:0 0 auto 0;height:34px;z-index:80;display:flex;align-items:center;gap:14px;padding:0 14px;background:#171717;color:#eeede9;border-bottom:1px solid #39332e;font:11px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+#nullx11-native-bar a{text-decoration:none;color:inherit}
+#nullx11-native-bar .nullx11-native-name{color:#e99569;font:600 12px ui-monospace,Consolas,monospace;white-space:nowrap}
+#nullx11-native-bar .nullx11-native-mode{font:8px ui-monospace,Consolas,monospace;letter-spacing:1px;color:#96948e}
+#nullx11-native-bar .nullx11-native-credit{margin-left:auto;font-size:9px;color:#96948e}
+#nullx11-native-bar .nullx11-native-back{border:1px solid #484039;border-radius:4px;padding:3px 7px;font-size:10px;white-space:nowrap}
+#nullx11-native-bar a:hover{color:#e99569}
+#nullx11-native-bar a:focus-visible{outline:2px solid #e99569;outline-offset:2px}
+@media(max-width:640px){#nullx11-native-bar{padding:0 9px;gap:9px}#nullx11-native-bar .nullx11-native-credit,#nullx11-native-bar .nullx11-native-mode{display:none}#nullx11-native-bar .nullx11-native-back{margin-left:auto}}

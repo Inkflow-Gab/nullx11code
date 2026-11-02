@@ -211,9 +211,9 @@ function customProviders(cfg) {
 }
 
 /** All known providers (registry + custom from config), each annotated with key status. */
-export function allProviders(cfg) {
+export function allProviders(cfg, env = process.env) {
   return [...PROVIDERS, ...customProviders(cfg)].map((p) => {
-    const apiKey = p.custom ? p.apiKey || getApiKey(p, cfg) : getApiKey(p, cfg);
+    const apiKey = p.custom ? p.apiKey || getApiKey(p, cfg, env) : getApiKey(p, cfg, env);
     const detected = !!apiKey || !!p.local;
     return { ...p, apiKey, detected };
   });

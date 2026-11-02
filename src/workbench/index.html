@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#141414" />
+  <meta name="description" content="Your project. Your models. A focused coding workspace powered by OpenCode." />
+  <title>nullx11code — Workspace</title>
+  <link rel="icon" href="/_nullx/brand.svg" type="image/svg+xml"/>
+  <link rel="stylesheet" href="/_nullx/style.css" />
+  <script type="module" src="/_nullx/app.js"></script>
+</head>
+<body>
+<svg class="icon-defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8H5l-3 3V11a9 9 0 1 1 18 0Z"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h5l3 4h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H5v20h14V7l-5-5ZM14 2v6h5M8 13h8M8 17h6"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24"><circle cx="6" cy="5" r="3"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M6 8v8M18 8c0 6-12 3-12 8"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M14 3h7v7m0-7L10 14M10 3H3v18h18v-7"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-3-3 3-3m-7-1 3-3"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+</defs></svg>
+<div id="app" class="shell">
+  <aside class="sidebar" id="sidebar" aria-label="Session navigation">
+    <a class="brand" href="/" aria-label="nullx11code home"><span class="brand-mark">n<span>₁₁</span></span><span>nullx11<span class="brand-muted">code</span><small>THE CODING WORKSPACE</small></span><span class="version-label">BETA</span></a>
+    <button class="new-session" data-action="new"><svg><use href="#i-plus"/></svg>New session<kbd>⌘ N</kbd></button>
+    <button class="search-sessions" data-action="palette"><svg><use href="#i-search"/></svg>Search anything…<kbd>⌘ K</kbd></button>
+    <div class="sidebar-label"><span>WORKSPACE</span><span class="workspace-dot"></span></div>
+    <button class="project-card" data-action="files"><svg><use href="#i-folder"/></svg><span><strong id="project-name">Loading project…</strong><small id="project-short">Connected directory</small></span><svg class="small"><use href="#i-down"/></svg></button>
+    <div class="sidebar-label sessions-label"><span>RECENT SESSIONS</span><button class="icon-button" data-action="refresh" title="Refresh sessions" aria-label="Refresh sessions"><svg><use href="#i-clock"/></svg></button></div>
+    <nav id="sessions" class="sessions" aria-label="Recent sessions"><p class="muted empty-list">No sessions yet.<br>Your next idea starts here.</p></nav>
+    <div class="sidebar-bottom">
+      <button class="provider-card" data-action="connect"><span class="provider-card-icon"><svg><use href="#i-key"/></svg></span><span><strong>Bring your own model</strong><small>Connect a provider to get started</small></span><svg class="small"><use href="#i-chevron"/></svg></button>
+      <div class="sidebar-footer"><button class="subtle-button" data-action="settings"><svg><use href="#i-settings"/></svg>Settings</button><span id="version">v0.5.0</span></div>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="workspace-bar">
+      <button class="icon-button mobile-only" data-action="sidebar" aria-label="Toggle sidebar"><svg><use href="#i-menu"/></svg></button>
+      <div class="breadcrumbs"><svg><use href="#i-folder"/></svg><span id="breadcrumb-project">Workspace</span><span class="slash">/</span><strong id="session-title">New session</strong></div>
+      <div class="header-actions"><span class="branch-chip" id="branch"><svg><use href="#i-branch"/></svg><span>workspace</span></span><button class="icon-button" data-action="session-menu" aria-label="Session actions" title="Session actions"><svg><use href="#i-settings"/></svg></button><span class="separator"></span><button class="icon-button active" id="inspector-toggle" data-action="inspector" title="Toggle workspace panel" aria-label="Toggle workspace panel"><svg><use href="#i-panel"/></svg></button></div>
+    </header>
+    <div id="connection-banner" class="connection-banner" hidden>Reconnecting to the agent engine. Your session is safe.</div>
+    <section class="chat-scroll" id="chat-scroll" aria-label="Conversation">
+      <div class="welcome" id="welcome">
+        <div class="welcome-eyebrow"><span class="orange-dot"></span>A LITTLE LESS FRICTION. A LOT MORE BUILDING.</div>
+        <div class="welcome-symbol" aria-hidden="true">n<span>₁₁</span><i>✳</i></div>
+        <h1>What are we building<span>?</span></h1>
+        <p>Your code, your models, your next big idea.<br>A focused space to turn <em>what if</em> into <em>what’s next.</em></p>
+        <div class="suggestions">
+          <button data-prompt="Explore this project. Explain the architecture, key files, and how to run it."><span class="suggestion-icon"><svg><use href="#i-code"/></svg></span><strong>Understand this codebase</strong><small>Find your way around a new project</small><svg class="small"><use href="#i-chevron"/></svg></button>
+          <button data-prompt="Review this codebase for bugs and security issues. Explain what you find before making any edits."><span class="suggestion-icon"><svg><use href="#i-search"/></svg></span><strong>Find what needs fixing</strong><small>Fresh eyes on bugs and rough edges</small><svg class="small"><use href="#i-chevron"/></svg></button>
+          <button data-prompt="Help me plan a new feature for this project. First ask me what I want to build, then propose an implementation plan."><span class="suggestion-icon"><svg><use href="#i-spark"/></svg></span><strong>Build something new</strong><small>Go from a small idea to a solid plan</small><svg class="small"><use href="#i-chevron"/></svg></button>
+        </div>
+        <div class="welcome-note"><svg><use href="#i-key"/></svg>Your keys. Your choice. No model lock-in.</div>
+      </div>
+      <div id="messages" class="messages" hidden></div>
+    </section>
+    <div class="composer-dock">
+      <div id="attention" class="attention" hidden></div>
+      <form id="composer-form" class="composer">
+        <div id="attachments" class="attachments" hidden></div>
+        <label class="sr-only" for="prompt">Message the coding agent</label>
+        <textarea id="prompt" rows="2" placeholder="Ask anything, or describe what you want to build…" spellcheck="false"></textarea>
+        <div id="slash-menu" class="slash-menu" hidden></div>
+        <div class="composer-toolbar"><div class="composer-tools"><button type="button" class="tool-chip agent-chip" id="agent-button" data-action="agents"><svg><use href="#i-spark"/></svg><span>Build</span><svg class="tiny"><use href="#i-down"/></svg></button><span class="tool-divider"></span><button type="button" class="tool-chip model-chip" data-action="models"><span class="model-indicator"></span><span id="model-label">Choose a model</span><svg class="tiny"><use href="#i-down"/></svg></button></div><div class="composer-actions"><button type="button" class="icon-button" data-action="attach" title="Attach a project file" aria-label="Attach a project file"><svg><use href="#i-plus"/></svg></button><button class="send-button" id="send" type="submit" aria-label="Send message" title="Send message"><svg><use href="#i-arrow"/></svg></button><button class="send-button stop-button" id="stop" type="button" data-action="stop" aria-label="Stop generation" hidden><svg><use href="#i-stop"/></svg></button></div></div>
+      </form>
+      <div class="composer-footer"><span><kbd>↵</kbd> send <span class="footer-dot">·</span><kbd>shift ↵</kbd> new line <span class="footer-dot">·</span><kbd>/</kbd> commands</span><span id="usage-label">Tool actions follow your permissions</span></div>
+    </div>
+    <footer class="status-bar"><span><span class="status-dot" id="status-dot"></span><span id="connection-status">Connecting</span><span class="status-divider">/</span><span id="status-project">local workspace</span></span><span><span id="session-stats">No session started</span><span class="status-divider">/</span><span>Powered by OpenCode</span></span></footer>
+  </main>
+  <aside class="inspector" id="inspector" aria-label="Workspace context">
+    <div class="inspector-header"><strong>Workspace</strong><button class="icon-button" data-action="inspector" aria-label="Close workspace panel"><svg><use href="#i-panel"/></svg></button></div>
+    <div class="inspector-tabs" role="tablist" aria-label="Workspace views"><button role="tab" aria-selected="true" data-tab="files" class="selected">Files</button><button role="tab" aria-selected="false" data-tab="changes">Changes <span id="changes-count">0</span></button><button role="tab" aria-selected="false" data-tab="tasks">Tasks</button></div>
+    <div class="inspector-content" id="inspector-content"><p class="muted empty-list">Loading workspace…</p></div>
+    <div class="inspector-bottom"><div class="engine-label"><span class="engine-icon"><svg><use href="#i-code"/></svg></span><span><strong>Built on OpenCode</strong><small>Real tools. Real project context.</small></span></div><a href="/?experience=advanced" class="native-link">Open advanced workspace<svg><use href="#i-link"/></svg></a></div>
+  </aside>
+</div>
+<dialog id="dialog" aria-labelledby="dialog-title"><div class="dialog-header"><div><span class="dialog-eyebrow" id="dialog-eyebrow">NULLX11CODE</span><h2 id="dialog-title">Command menu</h2></div><button class="icon-button" data-action="close-dialog" aria-label="Close dialog"><svg><use href="#i-x"/></svg></button></div><div id="dialog-body"></div></dialog>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+</body>
+</html>
