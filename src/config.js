@@ -10,11 +10,15 @@ export function globalDir() {
   return process.env.NULLX11_HOME || path.join(os.homedir(), '.nullx11code');
 }
 
-/** Walk up from cwd to find the project root (.git or .nullx11code). */
+/** Walk up from cwd to find the project root (.git, .nullx11, or .nullx11code). */
 export function projectRoot(cwd = process.cwd()) {
   let dir = path.resolve(cwd);
   for (;;) {
-    if (fs.existsSync(path.join(dir, '.git')) || fs.existsSync(path.join(dir, '.nullx11code'))) {
+    if (
+      fs.existsSync(path.join(dir, '.git')) ||
+      fs.existsSync(path.join(dir, '.nullx11')) ||
+      fs.existsSync(path.join(dir, '.nullx11code'))
+    ) {
       return dir;
     }
     const parent = path.dirname(dir);
@@ -75,6 +79,7 @@ const DEFAULTS = {
   maxTokens: null,
   systemPrompt: null, // extra base prompt appended
   skills: { dirs: [], enabled: [] },
+  commands: { dirs: [] }, // extra slash-command folders (.nullx11/*.md auto-detected anyway)
   approvals: { shell: true, write: true },
   providers: {}, // { customId: { baseUrl, apiKey, name } }
   port: 7860,
@@ -98,6 +103,12 @@ export function loadConfig(cwd = process.cwd()) {
       ...(projCfg.skills || {}),
       dirs: [...(globalCfg.skills?.dirs || []), ...(projCfg.skills?.dirs || [])],
       enabled: [...new Set([...(globalCfg.skills?.enabled || []), ...(projCfg.skills?.enabled || [])])],
+    },
+    commands: {
+      ...DEFAULTS.commands,
+      ...(globalCfg.commands || {}),
+      ...(projCfg.commands || {}),
+      dirs: [...(globalCfg.commands?.dirs || []), ...(projCfg.commands?.dirs || [])],
     },
     approvals: {
       ...DEFAULTS.approvals,
@@ -145,11 +156,18 @@ export function skillDirs(cfg, cwd = process.cwd()) {
     const abs = path.isAbsolute(d) ? d : path.resolve(cfg._root || cwd, d);
     if (!dirs.includes(abs)) dirs.push(abs);
   }
+  const root = cfg._root || projectRoot(cwd);
+  for (const marker of ['.nullx11', '.nullx11code']) {
+    const p = path.join(root, marker, 'skills');
+    if (!dirs.includes(p)) dirs.push(p);
+  }
   const proj = path.join(projectDir(cwd), 'skills');
   if (!dirs.includes(proj)) dirs.push(proj);
   const shared = path.join(cwd, 'skills');
   if (!dirs.includes(shared)) dirs.push(shared);
   const home = path.join(globalDir(), 'skills');
   if (!dirs.includes(home)) dirs.push(home);
+  const homeShort = path.join(os.homedir(), '.nullx11', 'skills');
+  if (!dirs.includes(homeShort)) dirs.push(homeShort);
   return dirs;
 }

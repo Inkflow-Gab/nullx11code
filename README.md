@@ -126,11 +126,38 @@ When a message looks like it matches an inactive skill, the CLI hints: `💡 ski
 
 Four ready-made skills ship in [`examples/skills/`](examples/skills): `code-review`, `commit-msg`, `sql-helper`, `explain-repo`.
 
+## Custom commands — `.nullx11/*.md`
+
+Drop any markdown file into **`.nullx11/`** (auto-detected in the project where you run the CLI — or in `~/.nullx11/` for global ones) and it becomes a slash command named after the file:
+
+```
+.nullx11/
+  extra.md          →  /extra
+  commands/pixel.md →  /pixel      (subfolder works too)
+```
+
+```markdown
+---
+description: Create a polished animation for this project
+example: /extra make the hero icon float with binary rain
+---
+Do the following for: $ARGUMENTS
+…instructions…
+```
+
+- **Prefix peek**: typing `/ex` shows `→ /extra  Create a polished animation… (from /ex)` and runs it — even though the builtin `/exit` also starts with `ex` (unique custom match wins; if several match you get a candidate list).
+- **`$ARGUMENTS`** is replaced by whatever you type after the command; if the body has no placeholder, your words are appended.
+- The expanded prompt is sent to the model like a normal message (skills + tools still apply).
+- `/help` lists them under **Custom commands** with description + example; Tab-completion includes them too.
+- Extra folders can be added via config: `"commands": { "dirs": ["/path/to/cmds"] }`.
+
+Two are bundled: `.nullx11/extra.md` (animation creator) and `.nullx11/commands/pixel.md` (anime-sprite artist).
+
 ## Commands
 
 | Command | Description |
 |---|---|
-| `/help [cmd]` | help |
+| `/help [cmd]` | help (incl. your custom `.nullx11` commands) |
 | `/model [id\|#]` | switch model (shows family icons) |
 | `/models` | list models of current provider |
 | `/provider [id]` | switch provider |

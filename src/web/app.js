@@ -154,29 +154,45 @@ const INSTALL_CMDS = {
 const TYPE_SCRIPTS = {
   curl: [
     { t: 'type', text: INSTALL_CMDS.curl },
-    { t: 'wait', ms: 350 },
-    { t: 'line', text: '→ detecting node … v22.22.3', cls: 'info' },
-    { t: 'line', text: '→ fetching nullx11code v0.1.0 (zero dependencies)', cls: 'dim' },
-    { t: 'progress', label: 'downloading', ms: 1600 },
-    { t: 'line', text: '✓ installed → nullx11code, n11', cls: 'ok' },
-    { t: 'line', text: '→ next: nullx11code            (interactive chat)', cls: 'dim' },
-    { t: 'line', text: '→ next: nullx11code serve      (web ui)', cls: 'dim' },
-    { t: 'wait', ms: 2600 },
+    { t: 'wait', ms: 300 },
+    { t: 'line', text: '┌─ nullx11code installer ─────────────────────────┐', cls: 'dim' },
+    { t: 'line', text: '│ environment  node v22.22.3 ✓  npm 10.9.8 ✓     │', cls: 'dim' },
+    { t: 'line', text: '│ platform     linux-x64 · zero npm dependencies  │', cls: 'dim' },
+    { t: 'line', text: '└────────────────────────────────────────────────┘', cls: 'dim' },
+    { t: 'line', text: '→ resolving release … v0.1.0 (sha256 9f3c1e…a7b2)', cls: 'info' },
+    { t: 'download', label: '↓ nullx11code-0.1.0.tar.gz', total: 1.4, ms: 2000 },
+    { t: 'line', text: '✓ checksum verified — archive is authentic', cls: 'ok' },
+    { t: 'line', text: '→ extracting … 71 files (src/, bin/, assets/icons/)', cls: 'dim' },
+    { t: 'line', text: '→ linking binaries … nullx11code, n11', cls: 'dim' },
+    { t: 'line', text: '→ scaffolding .nullx11/ … skills/ commands/', cls: 'dim' },
+    { t: 'line', text: '✓ nothing else to install — 0 dependencies', cls: 'ok' },
+    { t: 'line', text: '✓ ready in 2.8s', cls: 'ok' },
+    { t: 'line', text: '', cls: 'dim' },
+    { t: 'line', text: '  nullx11code            → chat (pick a free provider)', cls: 'info' },
+    { t: 'line', text: '  nullx11code serve      → web ui on :7860', cls: 'info' },
+    { t: 'line', text: '  nullx11code /help      → all commands', cls: 'info' },
+    { t: 'wait', ms: 3200 },
   ],
   npm: [
     { t: 'type', text: INSTALL_CMDS.npm },
-    { t: 'wait', ms: 350 },
-    { t: 'line', text: 'added 1 package in 2s', cls: 'dim' },
-    { t: 'line', text: '✓ nullx11code v0.1.0 linked to nullx11code, n11', cls: 'ok' },
-    { t: 'wait', ms: 2600 },
+    { t: 'wait', ms: 300 },
+    { t: 'line', text: '→ resolving tarball … codeload.github.com/…/main', cls: 'dim' },
+    { t: 'download', label: '↓ nullx11code-0.1.0.tar.gz', total: 1.4, ms: 1600 },
+    { t: 'line', text: '✓ checksum verified', cls: 'ok' },
+    { t: 'line', text: 'added 1 package — no transitive deps', cls: 'dim' },
+    { t: 'line', text: '✓ linked: nullx11code, n11', cls: 'ok' },
+    { t: 'line', text: '→ next: nullx11code doctor   (check free keys)', cls: 'info' },
+    { t: 'wait', ms: 3200 },
   ],
   npx: [
     { t: 'type', text: INSTALL_CMDS.npx },
-    { t: 'wait', ms: 500 },
+    { t: 'wait', ms: 400 },
+    { t: 'line', text: '→ fetching latest nullx11code (cached after 1st run)', cls: 'dim' },
+    { t: 'download', label: '↓ streaming package', total: 0.4, ms: 900 },
     { t: 'line', text: '  ▗▄▖ ▐▌ ▐▌ nullx11code v0.1.0', cls: 'ok' },
     { t: 'line', text: '  free-first AI coding agent · terminal + web', cls: 'dim' },
-    { t: 'line', text: '  no API keys yet — free: put NVIDIA_API_KEY=… in .env', cls: 'warn' },
-    { t: 'wait', ms: 2600 },
+    { t: 'line', text: '  no API keys yet — free: NVIDIA_API_KEY=… in .env', cls: 'warn' },
+    { t: 'wait', ms: 3200 },
   ],
 };
 
@@ -216,6 +232,30 @@ async function playInstallAnimation(kind) {
       await sleep(140);
     } else if (step.t === 'wait') {
       await sleep(step.ms);
+    } else if (step.t === 'download') {
+      // richer download: byte counter, live KB/s, 30-cell bar
+      const steps = 30;
+      const t0 = performance.now();
+      for (let i = 1; i <= steps; i++) {
+        if (runId !== animRun) return;
+        bar.style.width = `${Math.round((i / steps) * 100)}%`;
+        const pct = i / steps;
+        const done = (step.total * pct).toFixed(2);
+        const elapsed = (performance.now() - t0) / 1000 || 0.001;
+        const speed = ((step.total * pct) / elapsed).toFixed(2);
+        const filled = '█'.repeat(i);
+        const empty = '░'.repeat(steps - i);
+        write(
+          html +
+            `<span class="dim">${step.label}</span>\n` +
+            `<span class="dim">  ${filled}${empty}  ${Math.round(pct * 100)}%  ${done}/${step.total.toFixed(2)} MB  ${speed} MB/s</span>\n<span class="cursor"></span>`
+        );
+        await sleep(step.ms / steps);
+      }
+      bar.style.width = '100%';
+      html += `<span class="dim">${step.label}  100%  ${step.total.toFixed(2)}/${step.total.toFixed(2)} MB  done</span>\n`;
+      write(html + '<span class="cursor"></span>');
+      await sleep(120);
     } else if (step.t === 'progress') {
       const steps = 26;
       for (let i = 1; i <= steps; i++) {
@@ -230,6 +270,79 @@ async function playInstallAnimation(kind) {
     }
   }
   if (runId === animRun) write(html + '<span class="cursor"></span>');
+}
+
+/* ═══════════ landing: flowing binary rain (canvas) ═══════════ */
+
+function startBinaryRain() {
+  const canvas = document.getElementById('binary-rain');
+  if (!canvas) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const ctx = canvas.getContext('2d');
+  let cols = [];
+  let raf = 0;
+  let running = true;
+  const GLYPHS = '01';
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const colW = 22;
+    const n = Math.ceil(rect.width / colW);
+    cols = Array.from({ length: n }, (_, i) => ({
+      x: i * colW + 4,
+      y: Math.random() * rect.height,
+      speed: 0.35 + Math.random() * 0.85,
+      len: 6 + Math.floor(Math.random() * 14),
+      green: Math.random() < 0.4,
+      trail: [],
+    }));
+  }
+
+  function frame() {
+    if (!running) return;
+    const w = canvas.width / (Math.min(window.devicePixelRatio || 1, 2));
+    const h = canvas.height / (Math.min(window.devicePixelRatio || 1, 2));
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = '600 13px ui-monospace, Menlo, monospace';
+    for (const col of cols) {
+      col.y += col.speed;
+      if (col.y - col.len * 16 > h) {
+        col.y = -Math.random() * 120;
+        col.speed = 0.35 + Math.random() * 0.85;
+        col.len = 6 + Math.floor(Math.random() * 14);
+        col.green = Math.random() < 0.4;
+      }
+      for (let i = 0; i < col.len; i++) {
+        const gy = col.y - i * 16;
+        if (gy < -16 || gy > h + 16) continue;
+        const head = i === 0;
+        const alpha = head ? 0.95 : Math.max(0.04, 0.55 - i * 0.05);
+        ctx.fillStyle = col.green
+          ? `rgba(118, 185, 0, ${head ? 1 : alpha})`
+          : `rgba(232, 238, 247, ${head ? 0.9 : alpha * 0.7})`;
+        const g = GLYPHS[(Math.floor(col.y / 16) + i * 7 + col.x) % 2];
+        ctx.fillText(g, col.x, gy);
+      }
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  resize();
+  frame();
+  window.addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      running = false;
+      cancelAnimationFrame(raf);
+    } else if (!running) {
+      running = true;
+      frame();
+    }
+  });
 }
 
 /* ═══════════ landing: provider strip ═══════════ */
@@ -675,6 +788,7 @@ function bindUI() {
 async function boot() {
   bindUI();
   playInstallAnimation('curl');
+  startBinaryRain();
 
   try {
     const data = await api('/api/state');

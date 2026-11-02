@@ -9,6 +9,7 @@ import { discoverSkills, skillsPrompt, suggestSkills } from './skills.js';
 import { createSession, saveSession, loadSession } from './sessions.js';
 import { runTurn } from './chat.js';
 import { COMMANDS, findCommand, completeCommand } from './commands.js';
+import { discoverExtras, renderExtra, resolveInvocation, commandEntries } from './extracmds.js';
 import { actionSummary } from './tools.js';
 
 const BASE_PROMPT = (root, provName) => `You are nullx11code, a concise AI coding agent running in the user's terminal (also usable from mobile terminals like Termux).
@@ -90,6 +91,10 @@ export async function runInteractive(opts = {}) {
   state.refreshSkills = () => {
     state.skills = discoverSkills(cfg, cwd);
   };
+  state.extras = [];
+  state.refreshExtras = () => {
+    state.extras = discoverExtras(cfg, cwd);
+  };
   state.systemPrompt = () => {
     const skills = skillsPrompt(state.skills);
     return [BASE_PROMPT(state.root, prov.name), cfg.systemPrompt || '', skills].filter(Boolean).join('\n\n');
@@ -113,6 +118,7 @@ export async function runInteractive(opts = {}) {
   state.clearScreen = () => {};
 
   state.refreshSkills();
+  state.refreshExtras();
   state.newSession();
   if (opts.resume) {
     const s = opts.resume === true ? null : loadSession(opts.resume, { cwd });
@@ -135,6 +141,9 @@ export async function runInteractive(opts = {}) {
     const enabledSkills = state.skills.filter((s) => s.enabled);
     if (enabledSkills.length) {
       console.log(`  ${c.dim('skills')} ${enabledSkills.map((s) => hex(s.name, '#76B900')).join(c.dim(', '))}`);
+    }
+    if (state.extras.length) {
+      console.log(`  ${c.dim('commands')} ${state.extras.map((x) => hex('/' + x.name, '#4E8CFF')).join(c.dim(', '))} ${c.dim('— .nullx11/*.md')}`);
     }
     const undetected = allProviders(cfg).filter((p) => !p.detected && !p.local);
     if (!allProviders(cfg).some((p) => p.detected)) {
@@ -198,7 +207,11 @@ export async function runInteractive(opts = {}) {
       const parts = line.split(/\s+/);
       if (parts.length === 1) {
         const hits = completeCommand(parts[0]);
-        return [hits.length ? hits : [], line];
+        const extraHits = state.extras
+          .map((x) => '/' + x.name)
+          .filter((n) => n.startsWith(parts[0].toLowerCase()));
+        const merged = [...new Set([...hits, ...extraHits])];
+        return [merged.length ? merged : [], line];
       }
       if (/^\/(model|provider|skill)/.test(parts[0])) {
         const pool =
@@ -247,7 +260,7 @@ export async function runInteractive(opts = {}) {
   let abort = null;
 
   const handleUserInput = async (raw) => {
-    const text = raw.trim();
+    let text = raw.trim();
     if (!text) {
       promptLine();
       return;
@@ -255,19 +268,48 @@ export async function runInteractive(opts = {}) {
 
     if (text.startsWith('/')) {
       const [head, ...rest] = text.split(/\s+/);
-      const cmd = findCommand(head);
-      if (cmd) {
-        const out = await state.cmd(head, rest.join(' '));
-        if (out) console.log('\n' + out + '\n');
-        if (state.quitting) {
-          rlInterface.close();
-          return;
+      const args = rest.join(' ');
+      const bare = head.slice(1); // strip leading slash
+      const entries = commandEntries(COMMANDS, state.extras);
+      const res = resolveInvocation(entries, bare);
+
+      if (res.kind === 'ambiguous') {
+        // e.g. /ex → several candidates: show them as previews
+        console.log('');
+        for (const cand of res.candidates) {
+          const tag = cand.kind === 'extra' ? hex('/' + cand.name, '#4E8CFF') : c.cyan('/' + cand.name);
+          console.log(`  ${tag}  ${c.dim(cand.description || '')}`);
         }
+        console.log(c.dim(`  ${res.candidates.length} matches for ${head} — be more specific`));
         promptLine();
         return;
       }
-      if (head.length > 1) {
-        console.log(c.dim(`  unknown command ${head} — try /help`));
+
+      if (res.kind === 'unique' && !res.exact) {
+        // prefix peek: /ex → /extra  (show the resolved preview, then run it)
+        const m = res.match;
+        const tag = m.kind === 'extra' ? hex('/' + m.name, '#4E8CFF') : c.cyan('/' + m.name);
+        console.log(c.dim(`  → ${tag}${m.description ? c.dim('  ' + m.description) : ''} ${c.dim(`(from ${head})`)}`));
+      }
+
+      if (res.kind === 'exact' || res.kind === 'unique') {
+        const m = res.match;
+        if (m.kind === 'builtin') {
+          const out = await state.cmd(m.name, args);
+          if (out) console.log('\n' + out + '\n');
+          if (state.quitting) {
+            rlInterface.close();
+            return;
+          }
+          promptLine();
+          return;
+        }
+        // extra command → expand $ARGUMENTS and send as a chat turn
+        const expanded = renderExtra(m.ref, args);
+        console.log(c.dim(`  ⚡ /${m.name} ${args ? c.dim('· ' + args) : ''}`));
+        text = expanded;
+      } else if (head.length > 1) {
+        console.log(c.dim(`  unknown command ${head} — try /help${state.extras.length ? ' or /' + state.extras[0].name : ''}`));
         promptLine();
         return;
       }

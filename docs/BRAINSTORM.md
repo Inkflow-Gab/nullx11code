@@ -20,6 +20,10 @@ Ideas captured while building v0.1.0. Checked = shipped, ▸ = next up, ○ = wi
 - [x] `doctor`, `config`, `usage`, `compact`, `icon` commands
 - [x] Tests: `node --test` incl. mock-provider end-to-end
 
+- [x] **Custom commands**: `.nullx11/*.md` auto-detected → `/name` slash commands with `description`/`example` frontmatter, `$ARGUMENTS` templating, prefix peek (`/ex` → `/extra`), `/help` + Tab integration, project *or* global (`~/.nullx11/`) scope
+- [x] **Icon redesign v2**: anime-sprite mascot (cat-eared spirit), flowing binary-code texture, dark + glowing white palette, for web, CLI, favicon and generated PNGs
+- [x] **Download animation v2**: multi-stage installer (environment table, release + sha256, byte-counting download with live MB/s, checksum, extract, link binaries, scaffold `.nullx11/`, zero-dependency note) + flowing binary-rain canvas on the landing hero
+
 ## Next (▸)
 
 - [ ] **Skills marketplace**: `nullx11code skills add github:owner/repo` — pull a folder of skills from git

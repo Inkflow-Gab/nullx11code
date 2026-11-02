@@ -41,9 +41,18 @@ export const COMMANDS = [
         helpLine('compact', 'shrink history to save context'),
         helpLine('version', 'version info'),
         helpLine('quit', 'exit'),
-        '',
-        c.dim('  Tip: start messages with / to auto-complete commands.'),
       ];
+      const extras = ctx.extras || [];
+      if (extras.length) {
+        out.push('', c.bold('  Custom commands') + c.dim('  (.nullx11/*.md — auto-detected)'));
+        for (const x of extras) {
+          out.push(helpLine(x.name, x.description || c.dim('(no description)')));
+          if (x.example) out.push(`  ${' '.repeat(14)}${c.dim('e.g. ' + x.example)}`);
+        }
+      } else {
+        out.push('', c.dim('  No custom commands yet — drop a .md into .nullx11/ (see .nullx11/extra.md).'));
+      }
+      out.push('', c.dim('  Tip: start messages with / to auto-complete commands — prefix works too (/ex → /extra).'));
       return out.join('\n');
     },
   },

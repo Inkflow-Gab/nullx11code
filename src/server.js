@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { VERSION, loadConfig, saveProjectConfig } from './config.js';
 import { allProviders, resolveProvider, listModels, guessModel } from './providers.js';
 import { discoverSkills, setSkillEnabled, skillsPrompt } from './skills.js';
+import { discoverExtras } from './extracmds.js';
 import { createSession, saveSession, loadSession, listSessions } from './sessions.js';
 import { runTurn } from './chat.js';
 
@@ -121,10 +122,17 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
             enabled: s.enabled,
             source: s.source,
           }));
+          const extras = discoverExtras(cfg, cwd).map((x) => ({
+            name: x.name,
+            description: x.description,
+            example: x.example,
+            path: x.path,
+          }));
           sendJSON(res, 200, {
             version: VERSION,
             providers,
             skills,
+            extras,
             settings: {
               provider: cfg.provider,
               model: cfg.model,
