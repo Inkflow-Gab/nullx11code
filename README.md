@@ -11,10 +11,11 @@
 
 <p align="center">
   <img src="assets/icons/png/icon-192.png" alt="app icon" width="0" height="0" hidden />
-  <a href="#install">Install</a> ·
+  <a href="#setup">Setup</a> ·
+  <a href="#cli-commands">CLI commands</a> ·
+  <a href="#slash-commands">Slash commands</a> ·
   <a href="#web-ui">Web UI</a> ·
   <a href="#skills">Skills</a> ·
-  <a href="#commands">Commands</a> ·
   <a href="#providers">Providers</a> ·
   <a href="docs/BRAINSTORM.md">Roadmap</a>
 </p>
@@ -31,7 +32,11 @@
 - **Agent tools with approval** — reads/greps/lists freely; every **write** and **shell** command waits for your `[y/n/a]`.
 - **Terminal + Web in one** — `nullx11code serve` launches the same agent as a mobile-friendly web app.
 
-## Install
+## Setup
+
+Everything needed to get installed and chatting — in order.
+
+### 1. Install
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Inkflow-Gab/nullx11code/main/install.sh | sh
@@ -49,37 +54,101 @@ npm i -g https://codeload.github.com/Inkflow-Gab/nullx11code/tar.gz/refs/heads/m
 ```sh
 pkg install nodejs-lts
 curl -fsSL https://raw.githubusercontent.com/Inkflow-Gab/nullx11code/main/install.sh | sh
-nullx11code
 ```
 
 The CLI is line-based ANSI with auto-width, no mouse, and no bracketed-paste tricks — it behaves in small phone terminals. Non-TTY (piped) input works too: `echo "hello" | nullx11code`.
 </details>
 
-## Quick start
+### 2. Add a free API key
+
+Put **one** free key in `.env` (project) or `~/.nullx11code/.env` (global):
 
 ```sh
-# 1. get a free key (any one of these) and put it in .env
 echo "NVIDIA_API_KEY=nvapi-…" >> .env        # build.nvidia.com
 echo "GROQ_API_KEY=gsk_…" >> .env            # console.groq.com
+# more free keys: .env.example
+```
 
-# 2. verify
-nullx11code doctor
+### 3. Verify
 
-# 3. chat
+```sh
+nullx11code doctor        # checks keys, network, skills, node version
+```
+
+### 4. Chat
+
+```sh
 nullx11code                          # interactive
 nullx11code "explain this repo"      # one-shot
+nullx11code serve                    # web UI instead
 ```
 
 ```
-  ┌────────────────────────────────────────────────────────┐
-  │ ▗▄▖▐▌ ▐▌ nullx11code v0.1.0                           │
-  │ free-first AI coding agent · terminal + web            │
-  │ 2 providers with keys · 4 skills · /help for commands  │
-  └────────────────────────────────────────────────────────┘
+  ▗▄▖▐▌ ▐▌ nullx11code v0.1.0
+  free-first AI coding agent · terminal + web
+  2 keys · 4 skills · /help for commands
   model ▌NVIDIA NIM · nvidia/llama-3.3-70b-instruct · LL Llama
 
 ❯ /help
 ```
+
+## CLI commands
+
+Top-level `nullx11code <command>` (run in your shell, before the chat starts):
+
+| Command | Description |
+|---|---|
+| `nullx11code` | start interactive chat |
+| `nullx11code "prompt"` / `-p "prompt"` | one-shot answer, then exit |
+| `serve [port]` | launch the web UI (default `7860`, `0.0.0.0` for LAN/mobile) |
+| `providers` | list all providers + which keys are detected |
+| `models` | list models for a provider (`--provider <id>`) |
+| `skills` | show discovered skills and their status |
+| `doctor` | diagnose keys / network / skills / node |
+| `config` | print config paths + merged config |
+| `icon [app\|cli\|provider]` | print built-in icons |
+| `update` | print the update command |
+| `banner` | print the startup banner |
+| `version` \| `-v` | version info |
+| `help` \| `-h` | help |
+
+**Flags:** `--provider <id>` · `--model <id|auto>` · `--no-color` · `-y / --yes` (auto-approve tools) · `--resume [id]` · `-p "prompt"`
+
+<details>
+<summary>Update / uninstall</summary>
+
+```sh
+# update (re-run installer or)
+npm i -g https://codeload.github.com/Inkflow-Gab/nullx11code/tar.gz/refs/heads/main
+
+# uninstall
+npm rm -g nullx11code
+```
+</details>
+
+## Slash commands
+
+Typed **inside the chat** (Tab-completes, prefix works: `/ex` → `/extra`):
+
+| Command | Description |
+|---|---|
+| `/help [cmd]` | help (incl. your custom `.nullx11` commands) |
+| `/model [id\|#]` | switch model (shows family icons) |
+| `/models` | list models of current provider |
+| `/provider [id]` | switch provider |
+| `/providers` | all providers + key status |
+| `/skills`, `/skill on\|off <n>` | manage skills |
+| `/new`, `/clear` | fresh chat / clear screen |
+| `/history`, `/load <id>` | saved sessions |
+| `/export [file]` | export chat as markdown |
+| `/usage` | token estimate |
+| `/config [k=v]` | view/set config |
+| `/settings` | toggles (stream, approvals, colors) |
+| `/serve [port]` | launch web UI |
+| `/doctor` | diagnose keys/network/skills |
+| `/icon [app\|cli\|provider\|model]` | print icons |
+| `/compact` | shrink history |
+| `/quit` | exit |
 
 ## Web UI
 
@@ -152,30 +221,6 @@ Do the following for: $ARGUMENTS
 - Extra folders can be added via config: `"commands": { "dirs": ["/path/to/cmds"] }`.
 
 Two are bundled: `.nullx11/extra.md` (animation creator) and `.nullx11/commands/pixel.md` (anime-sprite artist).
-
-## Commands
-
-| Command | Description |
-|---|---|
-| `/help [cmd]` | help (incl. your custom `.nullx11` commands) |
-| `/model [id\|#]` | switch model (shows family icons) |
-| `/models` | list models of current provider |
-| `/provider [id]` | switch provider |
-| `/providers` | all providers + key status |
-| `/skills`, `/skill on\|off <n>` | manage skills |
-| `/new`, `/clear` | fresh chat / clear screen |
-| `/history`, `/load <id>` | saved sessions |
-| `/export [file]` | export chat as markdown |
-| `/usage` | token estimate |
-| `/config [k=v]` | view/set config |
-| `/settings` | toggles (stream, approvals, colors) |
-| `/serve [port]` | launch web UI |
-| `/doctor` | diagnose keys/network/skills |
-| `/icon [app\|cli\|provider\|model]` | print icons |
-| `/compact` | shrink history |
-| `/quit` | exit |
-
-CLI flags: `--provider <id>`, `--model <id>`, `--no-color`, `-y` (auto-approve), `--resume [id]`, `-p "prompt"`.
 
 ## Providers
 

@@ -154,45 +154,63 @@ const INSTALL_CMDS = {
 const TYPE_SCRIPTS = {
   curl: [
     { t: 'type', text: INSTALL_CMDS.curl },
-    { t: 'wait', ms: 300 },
-    { t: 'line', text: '┌─ nullx11code installer ─────────────────────────┐', cls: 'dim' },
-    { t: 'line', text: '│ environment  node v22.22.3 ✓  npm 10.9.8 ✓     │', cls: 'dim' },
-    { t: 'line', text: '│ platform     linux-x64 · zero npm dependencies  │', cls: 'dim' },
-    { t: 'line', text: '└────────────────────────────────────────────────┘', cls: 'dim' },
-    { t: 'line', text: '→ resolving release … v0.1.0 (sha256 9f3c1e…a7b2)', cls: 'info' },
-    { t: 'download', label: '↓ nullx11code-0.1.0.tar.gz', total: 1.4, ms: 2000 },
-    { t: 'line', text: '✓ checksum verified — archive is authentic', cls: 'ok' },
-    { t: 'line', text: '→ extracting … 71 files (src/, bin/, assets/icons/)', cls: 'dim' },
-    { t: 'line', text: '→ linking binaries … nullx11code, n11', cls: 'dim' },
-    { t: 'line', text: '→ scaffolding .nullx11/ … skills/ commands/', cls: 'dim' },
-    { t: 'line', text: '✓ nothing else to install — 0 dependencies', cls: 'ok' },
-    { t: 'line', text: '✓ ready in 2.8s', cls: 'ok' },
-    { t: 'line', text: '', cls: 'dim' },
-    { t: 'line', text: '  nullx11code            → chat (pick a free provider)', cls: 'info' },
-    { t: 'line', text: '  nullx11code serve      → web ui on :7860', cls: 'info' },
-    { t: 'line', text: '  nullx11code /help      → all commands', cls: 'info' },
-    { t: 'wait', ms: 3200 },
+    { t: 'wait', ms: 250 },
+    { t: 'hudInit' },
+    { t: 'status', state: 'boot', text: '01/07 ENV' },
+    { t: 'env', k: 'runtime', v: 'node v22.22.3', ok: true },
+    { t: 'env', k: 'package', v: 'npm 10.9.8', ok: true },
+    { t: 'env', k: 'platform', v: 'linux-x64 · zero npm dependencies', ok: true },
+    { t: 'status', state: 'resolve', text: '02/07 RESOLVE' },
+    { t: 'log', msg: 'release pinned — nullx11code v0.1.0', cls: 'info' },
+    { t: 'log', msg: 'manifest ok · 71 files · 1.40 MB', cls: 'dim' },
+    { t: 'status', state: 'download', text: '03/07 TRANSFER' },
+    { t: 'download', name: 'nullx11code-0.1.0.tar.gz', total: 1.4, ms: 2200 },
+    { t: 'status', state: 'verify', text: '04/07 VERIFY' },
+    { t: 'log', msg: 'sha256 9f3c1e…a7b2 matches manifest ✓', cls: 'ok' },
+    { t: 'status', state: 'extract', text: '05/07 EXTRACT' },
+    { t: 'log', msg: 'unpacked src/ bin/ assets/icons/ (71 files)', cls: 'dim' },
+    { t: 'status', state: 'link', text: '06/07 LINK' },
+    { t: 'log', msg: 'binaries → nullx11code, n11', cls: '' },
+    { t: 'log', msg: 'scaffolded .nullx11/ {skills, commands}', cls: '' },
+    { t: 'status', state: 'complete', text: '07/07 READY' },
+    { t: 'log', msg: '0 dependencies — nothing else to install', cls: 'ok' },
+    { t: 'done', time: '2.8s' },
+    { t: 'wait', ms: 4200 },
   ],
   npm: [
     { t: 'type', text: INSTALL_CMDS.npm },
-    { t: 'wait', ms: 300 },
-    { t: 'line', text: '→ resolving tarball … codeload.github.com/…/main', cls: 'dim' },
-    { t: 'download', label: '↓ nullx11code-0.1.0.tar.gz', total: 1.4, ms: 1600 },
-    { t: 'line', text: '✓ checksum verified', cls: 'ok' },
-    { t: 'line', text: 'added 1 package — no transitive deps', cls: 'dim' },
-    { t: 'line', text: '✓ linked: nullx11code, n11', cls: 'ok' },
-    { t: 'line', text: '→ next: nullx11code doctor   (check free keys)', cls: 'info' },
-    { t: 'wait', ms: 3200 },
+    { t: 'wait', ms: 250 },
+    { t: 'hudInit' },
+    { t: 'status', state: 'boot', text: '01/06 ENV' },
+    { t: 'env', k: 'runtime', v: 'node v22.22.3', ok: true },
+    { t: 'env', k: 'package', v: 'npm 10.9.8', ok: true },
+    { t: 'status', state: 'resolve', text: '02/06 RESOLVE' },
+    { t: 'log', msg: 'resolving tarball refs/heads/main', cls: 'info' },
+    { t: 'status', state: 'download', text: '03/06 TRANSFER' },
+    { t: 'download', name: 'nullx11code-0.1.0.tgz', total: 1.4, ms: 1700 },
+    { t: 'status', state: 'verify', text: '04/06 VERIFY' },
+    { t: 'log', msg: 'sha256 ok · no transitive deps', cls: 'ok' },
+    { t: 'status', state: 'link', text: '05/06 LINK' },
+    { t: 'log', msg: 'linked nullx11code, n11 → global bin', cls: '' },
+    { t: 'status', state: 'complete', text: '06/06 READY' },
+    { t: 'log', msg: 'next: nullx11code doctor (check free keys)', cls: 'info' },
+    { t: 'done', time: '1.9s' },
+    { t: 'wait', ms: 4200 },
   ],
   npx: [
     { t: 'type', text: INSTALL_CMDS.npx },
-    { t: 'wait', ms: 400 },
-    { t: 'line', text: '→ fetching latest nullx11code (cached after 1st run)', cls: 'dim' },
-    { t: 'download', label: '↓ streaming package', total: 0.4, ms: 900 },
-    { t: 'line', text: '  ▗▄▖ ▐▌ ▐▌ nullx11code v0.1.0', cls: 'ok' },
-    { t: 'line', text: '  free-first AI coding agent · terminal + web', cls: 'dim' },
-    { t: 'line', text: '  no API keys yet — free: NVIDIA_API_KEY=… in .env', cls: 'warn' },
-    { t: 'wait', ms: 3200 },
+    { t: 'wait', ms: 300 },
+    { t: 'hudInit' },
+    { t: 'status', state: 'boot', text: '01/05 ENV' },
+    { t: 'env', k: 'mode', v: 'ephemeral · cached after 1st run', ok: true },
+    { t: 'status', state: 'download', text: '02/05 TRANSFER' },
+    { t: 'download', name: 'nullx11code (streamed)', total: 0.4, ms: 1000 },
+    { t: 'status', state: 'verify', text: '03/05 VERIFY' },
+    { t: 'log', msg: 'package cache hit · checksum ok', cls: 'ok' },
+    { t: 'status', state: 'complete', text: '04/05 READY' },
+    { t: 'log', msg: 'no API keys yet — NVIDIA_API_KEY=… in .env', cls: 'warn' },
+    { t: 'done', time: '1.2s' },
+    { t: 'wait', ms: 4200 },
   ],
 };
 
@@ -203,73 +221,157 @@ async function playInstallAnimation(kind) {
   const runId = ++animRun;
   const out = $('#term-out');
   const bar = $('#term-bar');
-  if (!out) return;
+  const hud = $('#hud');
+  if (!out || !hud) return;
+
+  // ── reset ──
   out.innerHTML = '';
   bar.style.width = '0%';
+  hud.classList.add('hidden');
+  $('#hud-grid').innerHTML = '';
+  $('#hud-log').innerHTML = '';
+  $('#segbar').innerHTML = '';
+  $('#hud-dl').classList.add('hidden');
+  $('#hud-done').classList.add('hidden');
+  $('#hud-hash').textContent = 'sha256 —';
+  $('#hud-hash').classList.remove('locked');
+  const st = $('#hud-status');
+  st.dataset.state = 'boot';
+  $('#hud-status-text').textContent = '00/00 BOOT';
 
-  const write = (html) => {
-    out.innerHTML = html;
-    out.scrollTop = out.scrollHeight;
-  };
-  let html = '';
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const script = TYPE_SCRIPTS[kind] || TYPE_SCRIPTS.curl;
 
+  const stamp = () => {
+    const d = new Date();
+    const p = (n, w = 2) => String(n).padStart(w, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+  };
+
+  const addLog = (msg, cls = '') => {
+    const line = document.createElement('div');
+    line.className = `hud-log-line ${cls}`;
+    line.innerHTML = `<time>${stamp()}</time><span></span>`;
+    line.querySelector('span').textContent = msg;
+    $('#hud-log').appendChild(line);
+    return line;
+  };
+
+  let overall = 0;
+  const setOverall = (pct) => {
+    overall = Math.max(overall, Math.min(100, pct));
+    bar.style.width = `${overall}%`;
+  };
+
+  const steps = {
+    async type(text) {
+      const prefix = '<span class="ps1">$</span> ';
+      if (reduced) {
+        out.innerHTML = prefix + escapeHtml(text);
+        return;
+      }
+      let acc = prefix;
+      out.innerHTML = acc + '<span class="cursor"></span>';
+      for (const ch of text) {
+        if (runId !== animRun) return;
+        acc += escapeHtml(ch);
+        out.innerHTML = acc + '<span class="cursor"></span>';
+        await sleep(12 + Math.random() * 24);
+      }
+      out.innerHTML = acc + '<span class="cursor"></span>';
+    },
+    async wait(ms) {
+      await sleep(reduced ? 0 : ms);
+    },
+    hudInit() {
+      hud.classList.remove('hidden');
+      // force reflow so the entrance animation replays on tab switch
+      void hud.offsetWidth;
+      setOverall(6);
+    },
+    async status(s) {
+      st.dataset.state = s.state;
+      $('#hud-status-text').textContent = s.text;
+      await sleep(reduced ? 0 : 130);
+    },
+    async env(row) {
+      // three direct grid children per row → columns always align
+      const k = document.createElement('span');
+      k.className = 'hud-k';
+      k.textContent = row.k;
+      const v = document.createElement('span');
+      v.className = 'hud-v';
+      v.textContent = row.v;
+      const ok = document.createElement('span');
+      ok.className = 'hud-check';
+      ok.textContent = '✓';
+      $('#hud-grid').append(k, v, ok);
+      await sleep(reduced ? 0 : 160);
+    },
+    async log(line) {
+      addLog(line.msg, line.cls);
+      await sleep(reduced ? 0 : 170);
+    },
+    async download(d) {
+      const dl = $('#hud-dl');
+      dl.classList.remove('hidden');
+      $('#hud-dl-name').textContent = `↓ ${d.name}`;
+      const SEG = 36;
+      const segbar = $('#segbar');
+      segbar.innerHTML = '';
+      const segs = [];
+      for (let i = 0; i < SEG; i++) {
+        const s = document.createElement('i');
+        segbar.appendChild(s);
+        segs.push(s);
+      }
+      const t0 = performance.now();
+      const frames = reduced ? 1 : 44;
+      const from = overall; // glide from wherever the phase creep left the bar
+      const to = Math.min(95, from + 30);
+      for (let i = 1; i <= frames; i++) {
+        if (runId !== animRun) return;
+        const pct = i / frames;
+        const lit = Math.round(pct * SEG);
+        for (let s = 0; s < SEG; s++) segs[s].classList.toggle('on', s < lit);
+        const elapsed = (performance.now() - t0) / 1000 || 0.001;
+        const got = d.total * pct;
+        const speed = got / elapsed;
+        const eta = speed > 0 ? (d.total - got) / speed : 0;
+        $('#hud-pct').textContent = `${Math.round(pct * 100)}%`;
+        $('#hud-bytes').textContent = `${got.toFixed(2)} / ${d.total.toFixed(2)} MB`;
+        $('#hud-speed').textContent = `${speed.toFixed(2)} MB/s`;
+        $('#hud-eta').textContent = pct >= 1 ? 'ETA 0s' : `ETA ${eta.toFixed(1)}s`;
+        $('#hud-hash').textContent = `sha256 ${Math.random().toString(16).slice(2, 10)}…${Math.random().toString(16).slice(2, 6)}`;
+        setOverall(from + (to - from) * pct);
+        await sleep(reduced ? 0 : d.ms / frames);
+      }
+      // lock the real hash
+      $('#hud-hash').textContent = 'sha256 9f3c1e…a7b2';
+      $('#hud-hash').classList.add('locked');
+      $('#hud-pct').textContent = '100%';
+      $('#hud-bytes').textContent = `${d.total.toFixed(2)} / ${d.total.toFixed(2)} MB`;
+      $('#hud-eta').textContent = 'ETA 0s';
+      await sleep(reduced ? 0 : 160);
+    },
+    async done(res) {
+      $('#hud-time').textContent = res.time;
+      $('#hud-done').classList.remove('hidden');
+      setOverall(100);
+      await sleep(reduced ? 0 : 200);
+    },
+  };
+
+  let phase = 0;
   for (const step of script) {
     if (runId !== animRun) return;
-    if (step.t === 'type') {
-      html += '<span class="ps1">$</span> ';
-      for (let i = 0; i < step.text.length; i++) {
-        if (runId !== animRun) return;
-        html += escapeHtml(step.text[i]);
-        write(html + '<span class="cursor"></span>');
-        await sleep(14 + Math.random() * 26);
-      }
-      html += '\n';
-      write(html);
-    } else if (step.t === 'line') {
-      html += `<span class="${step.cls || ''}">${escapeHtml(step.text)}</span>\n`;
-      write(html);
-      await sleep(140);
-    } else if (step.t === 'wait') {
-      await sleep(step.ms);
-    } else if (step.t === 'download') {
-      // richer download: byte counter, live KB/s, 30-cell bar
-      const steps = 30;
-      const t0 = performance.now();
-      for (let i = 1; i <= steps; i++) {
-        if (runId !== animRun) return;
-        bar.style.width = `${Math.round((i / steps) * 100)}%`;
-        const pct = i / steps;
-        const done = (step.total * pct).toFixed(2);
-        const elapsed = (performance.now() - t0) / 1000 || 0.001;
-        const speed = ((step.total * pct) / elapsed).toFixed(2);
-        const filled = '█'.repeat(i);
-        const empty = '░'.repeat(steps - i);
-        write(
-          html +
-            `<span class="dim">${step.label}</span>\n` +
-            `<span class="dim">  ${filled}${empty}  ${Math.round(pct * 100)}%  ${done}/${step.total.toFixed(2)} MB  ${speed} MB/s</span>\n<span class="cursor"></span>`
-        );
-        await sleep(step.ms / steps);
-      }
-      bar.style.width = '100%';
-      html += `<span class="dim">${step.label}  100%  ${step.total.toFixed(2)}/${step.total.toFixed(2)} MB  done</span>\n`;
-      write(html + '<span class="cursor"></span>');
-      await sleep(120);
-    } else if (step.t === 'progress') {
-      const steps = 26;
-      for (let i = 1; i <= steps; i++) {
-        if (runId !== animRun) return;
-        bar.style.width = `${Math.round((i / steps) * 100)}%`;
-        const filled = '█'.repeat(i) + '░'.repeat(steps - i);
-        write(html + `<span class="dim">${step.label} ${filled} ${Math.round((i / steps) * 100)}%</span>\n<span class="cursor"></span>`);
-        await sleep(step.ms / steps);
-      }
-      html += `<span class="dim">${step.label} 100%</span>\n`;
-      write(html + '<span class="cursor"></span>');
-    }
+    phase++;
+    // overall progress creep: map step index onto 0–95 (done sets 100)
+    if (step.t !== 'done' && step.t !== 'download') setOverall(8 + (phase / script.length) * 85);
+    const fn = steps[step.t];
+    if (fn) await fn(step);
   }
-  if (runId === animRun) write(html + '<span class="cursor"></span>');
+  if (runId === animRun) setOverall(100);
 }
 
 /* ═══════════ landing: flowing binary rain (canvas) ═══════════ */
@@ -691,6 +793,10 @@ function bindUI() {
   $('#back-home').onclick = openHome;
   $('#open-side').onclick = () => $('#sidebar').classList.add('open');
   $('#close-side').onclick = closeSidebar;
+
+  $('#replay').onclick = () => {
+    playInstallAnimation(document.querySelector('.tab.active')?.dataset.cmd || 'curl');
+  };
 
   $('#copy-cmd').onclick = async () => {
     try {
