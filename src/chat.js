@@ -83,9 +83,63 @@ function mergeToolCalls(acc, incoming) {
  *   {type:'done', usage, steps}          — turn complete
  *   {type:'error', message}
  */
+// Tool names a read-only (plan) or child agent may see.
+const READ_ONLY_TOOLS = [
+  'list_files', 'read_file', 'grep', 'glob', 'webfetch',
+  'todowrite', 'todoread', 'question', 'load_skill',
+];
+
 export async function* runTurn({ prov, model, messages, ctx, signal }) {
   let steps = 0;
   let totalUsage = null;
+  const depth = ctx.subagentDepth ?? 0;
+
+  // opencode allowTools: restrict which tools this turn's model can see
+  let visibleTools = TOOL_SCHEMAS;
+  if (Array.isArray(ctx.allowTools)) {
+    const allow = new Set(ctx.allowTools);
+    visibleTools = TOOL_SCHEMAS.filter((s) => allow.has(s.function.name));
+  }
+
+  // child-session factory for the subagent tool (one nesting level max).
+  // Object.create keeps getter/setter ctx (todos!) working through the prototype.
+  let toolCtx = ctx;
+  if (depth < 1 && typeof ctx.subagent !== 'function') {
+    const subagent = async ({ description, prompt, agent, model: childModel }) => {
+      const childMessages = [
+        {
+          role: 'system',
+          content:
+            agent === 'plan'
+              ? 'You are a read-only plan subagent. Analyze and produce a plan; never modify files or run commands.'
+              : 'You are a subagent of a coding agent. Complete the task independently and answer with the result.',
+        },
+        { role: 'user', content: `${description}\n\n${prompt}` },
+      ];
+      const childCtx = Object.assign(Object.create(ctx), {
+        subagentDepth: depth + 1,
+        allowTools: agent === 'plan' ? READ_ONLY_TOOLS : ctx.allowTools ?? null,
+      });
+      let out = '';
+      let err = null;
+      for await (const ev of runTurn({
+        prov,
+        model: childModel || model,
+        messages: childMessages,
+        ctx: childCtx,
+        signal,
+      })) {
+        if (ev.type === 'delta') out += ev.text;
+        else if (ev.type === 'error') {
+          err = ev.message;
+          break;
+        }
+      }
+      if (err) return `Subagent failed: ${err}`;
+      return `Subagent completed "${description}".\n\nOutput:\n${(out || '(no text output)').slice(0, 30_000)}`;
+    };
+    toolCtx = Object.assign(Object.create(ctx), { subagent });
+  }
 
   while (steps < MAX_STEPS) {
     steps++;
@@ -95,7 +149,9 @@ export async function* runTurn({ prov, model, messages, ctx, signal }) {
       stream: true,
       temperature: ctx.temperature ?? 0.7,
       ...(ctx.maxTokens ? { max_tokens: ctx.maxTokens } : {}),
-      ...(ctx.tools !== false ? { tools: TOOL_SCHEMAS, tool_choice: 'auto' } : {}),
+      ...(ctx.tools !== false && visibleTools.length
+        ? { tools: visibleTools, tool_choice: 'auto' }
+        : {}),
     };
 
     let deltas = '';
@@ -189,7 +245,7 @@ export async function* runTurn({ prov, model, messages, ctx, signal }) {
       yield { type: 'tool_start', id: tc.id, name: tc.name, args: tc.args };
       let result;
       try {
-        result = await runTool(tc.name, tc.args, ctx);
+        result = await runTool(tc.name, tc.args, toolCtx);
       } catch (e) {
         result = `Tool error: ${e.message || e}`;
       }

@@ -138,8 +138,8 @@ npm rm -g nullx11code
 
 ## Slash commands
 
-Typed **inside the chat** (Tab-completes, prefix works: `/ex` → `/extra`).
-Ported from [opencode](https://github.com/anomalyco/opencode): `/setup`, `/init`, `/review`, `/agent`:
+Typed **inside the chat** (Tab-completes with descriptions, a live dropdown appears as you type, prefix works: `/ex` → `/extra`).
+Ported from [opencode](https://github.com/anomalyco/opencode): `/setup`, `/init`, `/review`, `/agent`, `/permissions`:
 
 | Command | Description |
 |---|---|
@@ -152,6 +152,7 @@ Ported from [opencode](https://github.com/anomalyco/opencode): `/setup`, `/init`
 | `/init [focus]` | create / improve `AGENTS.md` project instructions |
 | `/review [ref]` | review a commit, branch or PR (opencode-style) |
 | `/agent [build\|plan]` | build = full access · plan = **read-only** (edits denied) |
+| `/permissions [add\|rm\|default]` | allow/deny rules so safe commands never prompt (opencode-style) |
 | `/skills`, `/skill on\|off <n>` | manage skills |
 | `/new`, `/clear` | fresh chat / clear screen |
 | `/history`, `/load <id>` | saved sessions |
@@ -174,6 +175,10 @@ nullx11code serve 3000     # custom port
 
 - **Landing page** with the app/CLI icons, an animated *download-the-CLI* terminal (typing + progress bar), and the provider strip.
 - **Chat view** with provider/model pickers (icons!), skills toggles, session history, streaming markdown, and approval modals for tool actions.
+- **Full slash-command parity** — type `/` and a live popup lists every builtin + `.nullx11` command with descriptions (arrows to move, Tab to complete, Enter to run); output appears inline in the chat.
+- **Stop / regenerate / copy** — stop a stream mid-flight, regenerate the last reply, copy any answer or single code block (per-block copy button).
+- **`@file` mentions** — type `@src/app.js` and the file is inlined into the prompt server-side; **paste an image** (screenshots auto-shrink) and it is sent multimodally.
+- **Question tool** — when the agent asks structured questions, a modal shows numbered options (or free text), matching the CLI flow.
 - Serves on `0.0.0.0` so your phone on the same network can open the LAN URL shown at startup.
 
 ## Skills
@@ -266,13 +271,36 @@ Keys are read from: process env → `~/.nullx11code/.env` → `./.env` → confi
 | `grep` | automatic |
 | `glob` | automatic — find files by pattern (`**/*.ts`) |
 | `webfetch` | automatic — fetch a URL as plain text |
-| `todowrite` | automatic — plan/task tracking |
+| `todowrite` / `todoread` | automatic — plan/task tracking (the status line shows in-progress count) |
+| `question` | interactive — asks you (modal in the web, numbered prompt in the CLI) |
+| `load_skill` | automatic — pull in a discovered skill mid-task |
+| `subagent` | automatic — delegate a focused task to a child session (own context, one nesting level) |
 | `edit` | **asks** (`y/n/a`) — exact-string replace |
 | `write_file` | **asks** (`y/n/a`) |
+| `patch` | **asks** — apply a whole unified diff (add/update/delete) in one call |
 | `shell` | **asks** (`y/n/a`) |
 
-`a` = always approve this kind for the session. Print mode auto-rejects mutations unless `-y`.
+`a` = always approve this kind for the session — it also **persists an allow rule** to `.nullx11code/config.json`.
+Print mode auto-rejects mutations unless `-y`.
 In `/agent plan` mode, `edit`/`write_file`/`shell` are denied outright (read-only analysis).
+
+### Permissions (opencode-style rules)
+
+Rules are evaluated **deny → allow → default**, so a deny always wins:
+
+```sh
+/permissions                                  # list rules + default
+/permissions add shell "git *" allow          # never prompt for git
+/permissions add edit "*.lock" deny            # never touch lockfiles
+/permissions default ask                      # ask | allow | deny
+/permissions rm 1                             # drop a rule by number
+```
+
+The approval prompt's `a` (always) writes the same kind of rule for you. Rules live in `.nullx11code/config.json` under `permissions` and apply to both the CLI and the web UI.
+
+### Mentions
+
+Prefix a message with `@path/to/file` to inline it (text files ≤ 48 KB get a labeled fence; images become attachments; paths outside the project root are refused). Works in the CLI and the web composer.
 
 ## Configuration
 

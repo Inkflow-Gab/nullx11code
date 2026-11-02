@@ -7,7 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { VERSION, loadConfig, saveProjectConfig, loadInstructions } from './config.js';
 import { allProviders, resolveProvider, listModels, guessModel } from './providers.js';
 import { discoverSkills, setSkillEnabled, skillsPrompt } from './skills.js';
-import { discoverExtras } from './extracmds.js';
+import { discoverExtras, renderExtra, commandEntries, resolveInvocation } from './extracmds.js';
+import { COMMANDS, findCommand } from './commands.js';
+import { evaluate, actionForKind } from './permissions.js';
+import { expandMentions } from './mentions.js';
 import { createSession, saveSession, loadSession, listSessions } from './sessions.js';
 import { runTurn } from './chat.js';
 
@@ -85,6 +88,46 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
     cfg = loadConfig(cwd);
     return cfg;
   };
+
+  // shared state for server-side slash commands (full CLI parity in the web UI)
+  const webState = {
+    get cfg() {
+      return cfg;
+    },
+    prov: resolveProvider(cfg, cfg.provider),
+    model: cfg.model || null,
+    models: [],
+    cwd,
+    agent: 'build',
+    messages: [],
+    session: null,
+    skills: [],
+    extras: [],
+    todos: [],
+    quitting: false,
+    refreshSkills() {
+      this.skills = discoverSkills(cfg, cwd);
+    },
+    refreshExtras() {
+      this.extras = discoverExtras(cfg, cwd);
+    },
+    newSession() {
+      return 'Conversation reset is handled by the web UI.';
+    },
+    clearScreen() {},
+    quit() {},
+    cmd: async (name, args) => {
+      const cmd = findCommand(name);
+      if (!cmd) return `Unknown command: ${name}`;
+      try {
+        return (await cmd.run(webState, args)) ?? null;
+      } catch (e) {
+        return `error: ${e.message}`;
+      }
+    },
+  };
+  webState.refreshSkills();
+  webState.refreshExtras();
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -267,12 +310,35 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
           };
 
           const abort = new AbortController();
-          req.on('close', () => abort.abort());
-
-          let approvalWaiter = null;
           const approvals = new Map();
+          const askers = new Map();
+          req.on('close', () => {
+            abort.abort();
+            for (const [, w] of approvals) w(false);
+            approvals.clear();
+            for (const [, w] of askers) w(null);
+            askers.clear();
+          });
+          server.approvals = approvals;
+          server.askers = askers;
 
           const approve = (action) => {
+            // plan agent: deny mutations outright (CLI parity)
+            if (webState.agent === 'plan' && (action.kind === 'write' || action.kind === 'shell')) {
+              send({ type: 'notice', text: `denied (plan agent): ${action.title}` });
+              return Promise.resolve(false);
+            }
+            // permission rules from config (deny > allow > default)
+            const permAction = actionForKind(action.kind);
+            const effect = evaluate(permAction, action.resource ?? '*', cfg.permissions);
+            if (effect === 'deny') {
+              send({ type: 'notice', text: `denied by rule: ${permAction} ${action.resource ?? ''}` });
+              return Promise.resolve(false);
+            }
+            if (effect === 'allow') {
+              send({ type: 'notice', text: `allowed by rule (${permAction})` });
+              return Promise.resolve(true);
+            }
             if (!body.approveTools) return Promise.resolve(false);
             const id = `ap_${Math.random().toString(36).slice(2, 10)}`;
             send({ type: 'approval', id, action });
@@ -288,8 +354,19 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
             });
           };
 
-          // client answers approvals via POST /api/approve?id=..
-          server.approvals = approvals;
+          const askQuestions = (questions) => {
+            const id = `q_${Math.random().toString(36).slice(2, 10)}`;
+            send({ type: 'question', id, questions });
+            return new Promise((resolve) => {
+              askers.set(id, resolve);
+              setTimeout(() => {
+                if (askers.has(id)) {
+                  askers.delete(id);
+                  resolve(null);
+                }
+              }, 300_000);
+            });
+          };
 
           try {
             for await (const ev of runTurn({
@@ -302,6 +379,15 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
                 temperature: cfg.temperature,
                 maxTokens: cfg.maxTokens,
                 approve,
+                askQuestions,
+                skills: webState.skills,
+                agent: webState.agent,
+                get todos() {
+                  return webState.todos;
+                },
+                set todos(v) {
+                  webState.todos = v;
+                },
               },
               signal: abort.signal,
             })) {
@@ -328,6 +414,73 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
             waiter(!!approved);
           }
           return sendJSON(res, 200, { ok: true });
+        }
+
+        if (p === '/api/answer' && req.method === 'POST') {
+          const { id, answers } = JSON.parse((await readBody(req)) || '{}');
+          const waiter = server.askers?.get(id);
+          if (waiter) {
+            server.askers.delete(id);
+            waiter(Array.isArray(answers) ? answers : null);
+          }
+          return sendJSON(res, 200, { ok: true });
+        }
+
+        // command palette: list builtin + custom commands for the web slash popup
+        if (p === '/api/commands' && req.method === 'GET') {
+          const entries = commandEntries(COMMANDS, webState.extras);
+          return sendJSON(
+            res,
+            200,
+            entries.map((e) => ({ name: e.name, desc: e.description || '', kind: e.kind, example: e.example || '' }))
+          );
+        }
+
+        // run a slash command server-side (model switching, help, extras → prompt…)
+        if (p === '/api/command' && req.method === 'POST') {
+          const { name, args = '' } = JSON.parse((await readBody(req)) || '{}');
+          const bare = String(name || '').replace(/^\//, '');
+          webState.refreshExtras();
+          const entries = commandEntries(COMMANDS, webState.extras);
+          const inv = resolveInvocation(entries, bare);
+          let output = null;
+          let prompt = null;
+          if (inv.kind === 'exact' || inv.kind === 'unique') {
+            const m = inv.match;
+            if (m.kind === 'builtin') {
+              const out = await webState.cmd(m.name, String(args));
+              if (out && typeof out === 'object' && out.prompt) {
+                prompt = out.prompt;
+              } else {
+                output = out;
+              }
+            } else {
+              prompt = renderExtra(m.ref, String(args), { root: cfg._root || cwd });
+              output = `> /${m.name}${String(args) ? ' · ' + args : ''}`;
+            }
+          } else if (inv.kind === 'ambiguous') {
+            output = `matches: ${inv.candidates.map((c) => '/' + c.name).join(', ')}`;
+          } else {
+            output = `unknown command /${bare} — try /api/commands`;
+          }
+          return sendJSON(res, 200, {
+            output,
+            prompt,
+            model: webState.model,
+            provider: webState.prov?.id ?? cfg.provider,
+            agent: webState.agent,
+          });
+        }
+
+        // expand @file mentions (and attached images) server-side
+        if (p === '/api/expand' && req.method === 'POST') {
+          const { text } = JSON.parse((await readBody(req)) || '{}');
+          const expanded = expandMentions(String(text || ''), cfg._root || cwd);
+          return sendJSON(res, 200, {
+            text: expanded.text,
+            files: expanded.files,
+            images: expanded.images,
+          });
         }
 
         sendJSON(res, 404, { error: 'unknown api route' });

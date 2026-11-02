@@ -151,6 +151,92 @@ export const TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'question',
+      description:
+        'Ask the user questions during execution — clarify requirements, offer choices, get decisions. ' +
+        'A free-form "type your own" option is always available to the user; put a recommended choice first with "(Recommended)".',
+      parameters: {
+        type: 'object',
+        properties: {
+          questions: {
+            type: 'array',
+            description: 'Questions to ask',
+            items: {
+              type: 'object',
+              properties: {
+                question: { type: 'string' },
+                options: { type: 'array', items: { type: 'string' }, description: 'Numbered choices (2-6)' },
+                multiple: { type: 'boolean', description: 'Allow selecting more than one option' },
+              },
+              required: ['question'],
+            },
+          },
+        },
+        required: ['questions'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'todoread',
+      description: 'Read the current todo list for this task.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'patch',
+      description:
+        'Apply a unified diff (git-style) to multiple files in one call: add, update, or delete. ' +
+        'Hunks must match the current file content exactly. Requires user approval.',
+      parameters: {
+        type: 'object',
+        properties: {
+          patchText: {
+            type: 'string',
+            description:
+              'Full unified diff: diff --git a/f b/f · --- a/f · +++ b/f · @@ hunks with context/-/+ lines (use /dev/null to add or delete files)',
+          },
+        },
+        required: ['patchText'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'subagent',
+      description:
+        'Delegate a focused task to a child agent session with its own context window (exploration, research, separable subtasks). Returns the child final output.',
+      parameters: {
+        type: 'object',
+        properties: {
+          description: { type: 'string', description: 'One-line summary of the delegated task' },
+          prompt: { type: 'string', description: 'Full instructions for the child agent' },
+          agent: { type: 'string', enum: ['build', 'plan'], description: 'Child mode: build (default) or plan (read-only)' },
+          model: { type: 'string', description: 'Optional child model id (defaults to the current model)' },
+        },
+        required: ['description', 'prompt'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'load_skill',
+      description: 'Load the full instructions of a discovered skill by name (use when a skill is relevant but not active).',
+      parameters: {
+        type: 'object',
+        properties: { name: { type: 'string' } },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'shell',
       description: 'Run a shell command in the project. Requires user approval.',
       parameters: {
@@ -222,6 +308,147 @@ function* walkFiles(dir, depth = 8) {
     if (e.isDirectory()) yield* walkFiles(full, depth - 1);
     else if (e.isFile()) yield full;
   }
+}
+
+/**
+ * Parse a git-style unified diff into per-file operations.
+ * Supports: diff --git / --- / +++ headers, @@ hunks, /dev/null (add/delete),
+ * "\ No newline at end of file" markers (ignored — we normalize trailing newline).
+ */
+export function parseUnifiedDiff(text) {
+  const lines = String(text).replace(/\r\n/g, '\n').split('\n');
+  const files = [];
+  let cur = null;
+  let i = 0;
+  const startFile = () => {
+    cur = { path: null, oldPath: null, isNew: false, deleteFile: false, hunks: [] };
+    files.push(cur);
+  };
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.startsWith('diff --git ')) {
+      startFile();
+      i++;
+      continue;
+    }
+    if (line.startsWith('--- ')) {
+      if (!cur) startFile();
+      const p = stripPrefix(line.slice(4).trim());
+      cur.oldPath = p;
+      i++;
+      continue;
+    }
+    if (line.startsWith('+++ ')) {
+      if (!cur) startFile();
+      const p = stripPrefix(line.slice(4).trim());
+      if (p === '/dev/null') {
+        cur.deleteFile = true;
+        cur.path = cur.oldPath;
+      } else {
+        cur.path = p;
+        if (cur.oldPath === '/dev/null' || cur.oldPath == null) cur.isNew = true;
+      }
+      i++;
+      continue;
+    }
+    const m = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+    if (m) {
+      if (!cur) startFile();
+      const oldStart = Number(m[1]);
+      const oldCount = m[2] == null ? 1 : Number(m[2]);
+      const newStart = Number(m[3]);
+      const newCount = m[4] == null ? 1 : Number(m[4]);
+      i++;
+      const oldLines = [];
+      const newLines = [];
+      while (i < lines.length) {
+        const l = lines[i];
+        if (l.startsWith('@@') || l.startsWith('diff --git') || l.startsWith('--- ') || l.startsWith('+++ ')) break;
+        if (l.startsWith('\\')) {
+          i++;
+          continue; // \ No newline at end of file
+        }
+        const tag = l[0];
+        const body = l.slice(1);
+        if (tag === ' ') {
+          oldLines.push(body);
+          newLines.push(body);
+        } else if (tag === '-') {
+          oldLines.push(body);
+        } else if (tag === '+') {
+          newLines.push(body);
+        } else if (l === '') {
+          // some tools emit empty context lines without the leading space
+          oldLines.push('');
+          newLines.push('');
+        } else break;
+        i++;
+      }
+      cur.hunks.push({ oldStart, oldCount, newStart, newCount, oldLines, newLines });
+      continue;
+    }
+    i++;
+  }
+  for (const f of files) {
+    if (!f.path && f.oldPath) f.path = f.oldPath;
+    if (!f.path) throw new Error('file section without a path');
+    f.path = f.path.replace(/^[ab]\//, '');
+  }
+  return files.filter((f) => f.path && (f.deleteFile || f.hunks.length));
+}
+
+function stripPrefix(p) {
+  return p.replace(/^"|"$/g, '').replace(/^[ab]\//, (m, off, s) => (s.startsWith('/dev/null') ? m : ''));
+}
+
+/**
+ * Apply parsed hunks to `before` content, returning the new content.
+ * Verifies every context/removal line against the original text (offsets stay original-based).
+ */
+export function applyHunks(before, hunks, isNew) {
+  if (isNew) {
+    const out = [];
+    for (const h of hunks) out.push(...h.newLines);
+    return out.join('\n') + '\n';
+  }
+  const orig = before.split('\n');
+  // 1. verify
+  for (const h of hunks) {
+    const start = Math.max(0, h.oldStart - 1);
+    let oi = 0;
+    for (let k = 0; k < h.oldLines.length; k++) {
+      const expected = h.oldLines[k];
+      const actual = orig[start + k];
+      if (actual === undefined) {
+        throw new Error(`hunk at line ${h.oldStart}: file is shorter than expected (missing "${truncate(expected)}")`);
+      }
+      if (actual !== expected) {
+        throw new Error(`hunk at line ${h.oldStart}: expected "${truncate(expected)}" but found "${truncate(actual)}"`);
+      }
+      oi++;
+    }
+    void oi;
+  }
+  // 2. rebuild: walk original lines, splice hunks at their oldStart positions (in order)
+  const out = [];
+  let cursor = 0; // 0-based index into orig
+  const sorted = [...hunks].sort((a, b) => a.oldStart - b.oldStart);
+  for (const h of sorted) {
+    const start = Math.max(0, h.oldStart - 1);
+    if (start < cursor) throw new Error('overlapping hunks');
+    while (cursor < start) out.push(orig[cursor++]);
+    out.push(...h.newLines);
+    cursor = start + h.oldLines.length;
+  }
+  while (cursor < orig.length) out.push(orig[cursor++]);
+  let result = out.join('\n');
+  if (!result.endsWith('\n')) result += '\n';
+  return result;
+}
+
+function truncate(s) {
+  s = String(s ?? '');
+  return s.length > 60 ? s.slice(0, 57) + '...' : s;
 }
 
 /** Execute a tool call. `approve` is async (action) => boolean for gated tools. */
@@ -381,6 +608,104 @@ export async function runTool(name, args, ctx) {
       }
       const active = ctx.todos.filter((t) => t.status === 'in_progress').map((t) => `"${t.content}"`);
       return `Todos updated: ${parts.join(', ')}${active.length ? `. In progress: ${active.join(', ')}` : ''}`;
+    }
+    case 'question': {
+      const questions = Array.isArray(args.questions) ? args.questions.slice(0, 6) : [];
+      if (!questions.length) return 'No questions provided.';
+      if (typeof ctx.askQuestions !== 'function') {
+        return 'The user is not available to answer questions right now — continue with your best judgment.';
+      }
+      const answers = await ctx.askQuestions(questions);
+      if (!answers) return 'The user dismissed the questions.';
+      const formatted = questions
+        .map((q, i) => {
+          const a = answers[i];
+          const val = Array.isArray(a) ? a.join(', ') : a == null || a === '' ? 'Unanswered' : String(a);
+          return `"${q.question}"="${val}"`;
+        })
+        .join(', ');
+      return `User has answered your questions: ${formatted}. Continue with the user's answers in mind.`;
+    }
+    case 'todoread': {
+      const todos = Array.isArray(ctx.todos) ? ctx.todos : [];
+      if (!todos.length) return 'No todos yet.';
+      const mark = { completed: '[x]', in_progress: '[~]', pending: '[ ]', cancelled: '[-]' };
+      return todos.map((t) => `${mark[t.status] || '[ ]'} ${t.content}`).join('\n');
+    }
+    case 'patch': {
+      const patchText = String(args.patchText ?? '');
+      if (!patchText.trim()) return 'Empty patch.';
+      let plan;
+      try {
+        plan = parseUnifiedDiff(patchText);
+      } catch (e) {
+        return `Patch parse error: ${e.message}`;
+      }
+      if (!plan.length) return 'No file sections found in patch (expected ---/+++ or diff --git headers).';
+      // verify all hunks against current content BEFORE asking approval
+      const results = [];
+      for (const file of plan) {
+        const abs = safePath(root, file.path);
+        const exists = fs.existsSync(abs);
+        if (file.deleteFile) {
+          if (!exists) return `Cannot delete ${file.path}: not found.`;
+          results.push({ file, abs, before: fs.readFileSync(abs, 'utf8'), after: null });
+          continue;
+        }
+        const before = exists ? fs.readFileSync(abs, 'utf8') : '';
+        if (!exists && !file.isNew) return `Not found: ${file.path}`;
+        if (exists && file.isNew) return `${file.path} already exists (patch says add).`;
+        let after;
+        try {
+          after = applyHunks(before, file.hunks, file.isNew);
+        } catch (e) {
+          return `Patch does not apply to ${file.path}: ${e.message}`;
+        }
+        results.push({ file, abs, before, after });
+      }
+      const preview = plan
+        .map((f) => `${f.deleteFile ? 'D' : f.isNew ? 'A' : 'M'} ${f.path} (${f.hunks.length} hunk${f.hunks.length === 1 ? '' : 's'})`)
+        .join('\n');
+      const ok = await needsApproval({
+        kind: 'write',
+        title: `Apply patch — ${plan.length} file${plan.length === 1 ? '' : 's'}`,
+        detail: '',
+        preview,
+        command: null,
+      });
+      if (!ok) return 'User rejected the patch.';
+      for (const r of results) {
+        if (r.after == null) {
+          fs.unlinkSync(r.abs);
+        } else {
+          fs.mkdirSync(path.dirname(r.abs), { recursive: true });
+          fs.writeFileSync(r.abs, r.after);
+        }
+      }
+      return `Success. Updated ${results.length} file(s):\n${results
+        .map((r) => `${r.file.deleteFile ? 'D' : r.file.isNew ? 'A' : 'M'} ${r.file.path}`)
+        .join('\n')}`;
+    }
+    case 'subagent': {
+      const prompt = String(args.prompt || '');
+      if (!prompt) return 'No prompt provided for the subagent.';
+      if (typeof ctx.subagent !== 'function') {
+        return 'Subagents are not available in this context.';
+      }
+      return await ctx.subagent({
+        description: String(args.description || prompt.slice(0, 120)),
+        prompt,
+        agent: args.agent === 'plan' ? 'plan' : 'build',
+        model: typeof args.model === 'string' && args.model ? args.model : undefined,
+      });
+    }
+    case 'load_skill': {
+      const name = String(args.name || '').trim().toLowerCase();
+      if (!name) return 'name required.';
+      const skills = ctx.skills || [];
+      const hit = skills.find((s) => s.name.toLowerCase() === name);
+      if (!hit) return `No skill "${name}". Available: ${skills.map((s) => s.name).join(', ') || '(none)'}`;
+      return `<skill_content name="${hit.name}">\n${hit.body || ''}\n</skill_content>\nBase directory: ${hit.dir}`;
     }
     case 'shell': {
       const command = String(args.command ?? '').trim();

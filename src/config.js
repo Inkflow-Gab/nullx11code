@@ -81,6 +81,7 @@ const DEFAULTS = {
   skills: { dirs: [], enabled: [] },
   commands: { dirs: [] }, // extra slash-command folders (.nullx11/*.md auto-detected anyway)
   approvals: { shell: true, write: true },
+  permissions: { default: 'ask', rules: [] }, // opencode-style allow/deny/ask rules
   providers: {}, // { customId: { baseUrl, apiKey, name } }
   port: 7860,
   host: '0.0.0.0',
@@ -114,6 +115,13 @@ export function loadConfig(cwd = process.cwd()) {
       ...DEFAULTS.approvals,
       ...(globalCfg.approvals || {}),
       ...(projCfg.approvals || {}),
+    },
+    permissions: {
+      ...DEFAULTS.permissions,
+      ...(globalCfg.permissions || {}),
+      ...(projCfg.permissions || {}),
+      // project rules replace global rules entirely when present (explicit beats inherited)
+      rules: projCfg.permissions?.rules ?? globalCfg.permissions?.rules ?? [],
     },
     providers: { ...(globalCfg.providers || {}), ...(projCfg.providers || {}) },
     _root: root,
