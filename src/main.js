@@ -20,6 +20,7 @@ ${c.bold('COMMANDS')}
   models                       list models for a provider (--provider x)
   skills                       manage project skills
   doctor                       diagnose keys / network / skills
+  setup [provider] [key]       add an API key the easy way (writes .env)
   config                       show config path and contents
   icon [app|cli|provider]      print built-in icons
   update                       how to update this install
@@ -165,6 +166,70 @@ export async function main(argv) {
     }
     const skills = discoverSkills(cfg);
     console.log(`  skills   ${skills.length ? c.green(skills.filter((s) => s.enabled).length + ' active / ' + skills.length) : c.dim('none')}`);
+    return;
+  }
+
+  if (cmd === 'setup') {
+    // easy key setup before chat even starts: nullx11code setup [provider] [key]
+    const cfg = loadConfig();
+    const list = allProviders(cfg).filter((p) => !p.local && !p.custom);
+    const rest = opts._.slice(1);
+    if (rest.length < 2) {
+      console.log(banner({ providers: allProviders(cfg).filter((p) => p.detected).length }));
+      console.log(`  ${c.bold('Add a free API key')}\n`);
+      const rows = list.map((p) => [
+        hex(p.id, p.color),
+        p.free ? c.green('free') : c.dim('paid'),
+        p.detected ? c.green('key saved') : c.yellow('needs key'),
+        p.env[0] || '',
+        p.keyUrl ? c.dim(p.keyUrl.replace(/^https?:\/\//, '')) : '',
+      ]);
+      console.log(table(['provider', 'cost', 'status', 'env var', 'get key at'], rows));
+      console.log('');
+      const missing = list.filter((p) => !p.detected);
+      if (missing.length) {
+        console.log(c.dim(`  usage: nullx11code setup ${missing[0].id} <key>`));
+        console.log(c.dim(`  e.g.:  nullx11code setup ${missing[0].id} $(pbpaste)   # or paste after the flag`));
+      } else {
+        console.log(c.green('  all providers configured — run nullx11code to chat'));
+      }
+      return;
+    }
+    const id = rest[0].toLowerCase();
+    const key = rest.slice(1).join(' ').replace(/^["']|["']$/g, '');
+    const hit = list.find((p) => p.id === id || p.name.toLowerCase().includes(id));
+    if (!hit) {
+      console.error(c.red(`No provider "${rest[0]}". Try: ${list.map((p) => p.id).join(', ')}`));
+      process.exitCode = 1;
+      return;
+    }
+    const envName = hit.env[0];
+    const envFile = path.join(cfg._root, '.env');
+    let content = '';
+    try {
+      content = fs.readFileSync(envFile, 'utf8');
+    } catch {
+      /* fresh file */
+    }
+    const line = `${envName}=${key}`;
+    const re = new RegExp(`^\\s*(?:export\\s+)?${envName}\\s*=.*$`, 'm');
+    content = re.test(content) ? content.replace(re, line) : content.replace(/\s*$/, '\n') + line + '\n';
+    fs.writeFileSync(envFile, content);
+    process.env[envName] = key;
+    console.log(`${c.green('saved')} ${envName} → ${c.cyan(envFile)}`);
+    const fresh = allProviders({ ...cfg, _env: { ...(cfg._env || {}), [envName]: key } }).find((p) => p.id === hit.id);
+    try {
+      const res = await fetch(hit.base.replace(/\/+$/, '') + '/models', {
+        headers: { authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(6000),
+      });
+      console.log(res.ok ? c.green(`verified — /models returned ${res.status}`) : c.yellow(`endpoint answered ${res.status} — check the key`));
+    } catch (e) {
+      console.log(c.yellow(`could not verify (${e.message}) — key saved anyway`));
+    }
+    const models = await listModels(fresh || hit, cfg, { refresh: true });
+    console.log(`provider ${providerBadge(fresh || hit)} · model ${modelBadge(fresh || hit, guessModel(fresh || hit, models))}`);
+    console.log(c.dim('run nullx11code to start chatting'));
     return;
   }
 

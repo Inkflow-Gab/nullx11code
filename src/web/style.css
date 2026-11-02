@@ -409,6 +409,17 @@ button { font-family: inherit; }
   font-size: 11px; font-weight: 800;
 }
 .model-icon img { width: 15px; height: 15px; }
+.key-setup {
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 10px; border-radius: 10px;
+  background: rgba(118, 185, 0, .06);
+  border: 1px dashed rgba(118, 185, 0, .35);
+}
+.key-setup .side-label { margin-bottom: 0; color: #9fe870; }
+.key-row { display: flex; gap: 6px; }
+.key-row .grow { flex: 1; min-width: 0; }
+.key-link { font-size: 12px; color: var(--accent); text-decoration: none; }
+.key-link:hover { text-decoration: underline; }
 .skill-add { display: flex; gap: 6px; }
 .skill-list, .session-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
 .skill-list li, .session-list li {

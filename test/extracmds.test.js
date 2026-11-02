@@ -63,6 +63,29 @@ test('renderExtra substitutes $ARGUMENTS or appends', () => {
   assert.equal(renderExtra(noPlaceholder, ''), 'Base prompt.');
 });
 
+test('renderExtra: opencode-style $1..$N positional args', () => {
+  const tpl = { body: 'Copy $1 to $2. Rest: $2' };
+  // last placeholder ($2) swallows the remaining tokens
+  assert.equal(renderExtra(tpl, 'src/a.js dest/b.js'), 'Copy src/a.js to dest/b.js. Rest: dest/b.js');
+  const single = { body: 'Do $1' };
+  assert.equal(renderExtra(single, 'the thing'), 'Do the thing');
+  const missing = { body: 'Do $1' };
+  assert.equal(renderExtra(missing, ''), 'Do'); // trailing gap is trimmed
+});
+
+test('renderExtra: !`shell` interpolation inlines output (opencode-style)', () => {
+  const tpl = { body: 'Status:\n!`echo hello-from-shell`' };
+  const out = renderExtra(tpl, '', { root: process.cwd() });
+  assert.match(out, /Status:\nhello-from-shell/);
+  // failing command degrades to an inline note, not a crash
+  const bad = { body: '!`exit 3`' };
+  const out2 = renderExtra(bad, '', { root: process.cwd() });
+  assert.match(out2, /failed/);
+  // shell can be disabled
+  const off = renderExtra(tpl, '', { shell: false });
+  assert.match(off, /!`echo/);
+});
+
 test('resolveInvocation: /ex previews /extra (user scenario)', () => {
   const extras = [{ name: 'extra', kind: 'extra', ref: {}, description: 'anim' }];
   const entries = commandEntries(COMMANDS, extras);

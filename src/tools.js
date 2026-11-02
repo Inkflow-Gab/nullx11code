@@ -79,6 +79,78 @@ export const TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'glob',
+      description: 'Find files by glob pattern (e.g. "**/*.ts", "src/*.js"). Returns matching paths.',
+      parameters: {
+        type: 'object',
+        properties: {
+          pattern: { type: 'string', description: 'Glob pattern, default "**/*"' },
+          path: { type: 'string', description: 'Directory to search, default "."' },
+          limit: { type: 'integer', description: 'Max results, default 100' },
+        },
+        required: ['pattern'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'edit',
+      description: 'Replace an exact string in a file (old_string must match uniquely). Requires user approval.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string' },
+          old_string: { type: 'string', description: 'Exact text to find (must occur exactly once)' },
+          new_string: { type: 'string', description: 'Replacement text' },
+        },
+        required: ['path', 'old_string', 'new_string'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'webfetch',
+      description: 'Fetch an HTTP(S) URL and return it as plain text (tags stripped).',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string' },
+          max_chars: { type: 'integer', description: 'Truncate to this many chars, default 8000' },
+        },
+        required: ['url'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'todowrite',
+      description: 'Update the todo list for the current task. Pass the full list each time.',
+      parameters: {
+        type: 'object',
+        properties: {
+          todos: {
+            type: 'array',
+            description: 'The full updated todo list',
+            items: {
+              type: 'object',
+              properties: {
+                content: { type: 'string', description: 'Brief task description' },
+                status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled'] },
+              },
+              required: ['content', 'status'],
+            },
+          },
+        },
+        required: ['todos'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'shell',
       description: 'Run a shell command in the project. Requires user approval.',
       parameters: {
@@ -226,6 +298,89 @@ export async function runTool(name, args, ctx) {
       if (!hits.length) return `No matches for /${args.pattern}/`;
       const more = hits.length >= MAX_GREP_HITS ? '\n… truncated' : '';
       return hits.join('\n') + more;
+    }
+    case 'glob': {
+      const dir = safePath(root, args.path || '.');
+      if (!fs.existsSync(dir)) return `Not found: ${args.path}`;
+      const limit = Math.min(args.limit ?? 100, 400);
+      const re = globToRe(String(args.pattern || '**/*'));
+      const hits = [];
+      for (const f of walkFiles(dir)) {
+        const rel = path.relative(resolveRoot(root), f).split(path.sep).join('/');
+        if (re.test(rel) || re.test(path.basename(rel))) hits.push(rel);
+        if (hits.length >= limit) break;
+      }
+      if (!hits.length) return `No files match ${args.pattern}`;
+      return hits.join('\n') + (hits.length >= limit ? '\n… truncated' : '');
+    }
+    case 'edit': {
+      const file = safePath(root, args.path);
+      if (!fs.existsSync(file)) return `Not found: ${args.path}`;
+      const oldStr = String(args.old_string ?? '');
+      const newStr = String(args.new_string ?? '');
+      if (!oldStr) return 'old_string is required.';
+      const src = fs.readFileSync(file, 'utf8');
+      const first = src.indexOf(oldStr);
+      if (first === -1) return `old_string not found in ${args.path}.`;
+      if (src.indexOf(oldStr, first + 1) !== -1) {
+        return `old_string occurs ${src.split(oldStr).length - 1} times in ${args.path} — add more context to make it unique.`;
+      }
+      const rel = path.relative(resolveRoot(root), file) || args.path;
+      const preview = oldStr.split('\n').slice(0, 8).join('\n');
+      const ok = await needsApproval({
+        kind: 'write',
+        title: `Edit file ${rel}`,
+        detail: `${oldStr.length} → ${newStr.length} chars`,
+        preview,
+        command: null,
+      });
+      if (!ok) return 'User rejected the file edit.';
+      fs.writeFileSync(file, src.slice(0, first) + newStr + src.slice(first + oldStr.length));
+      return `Edited ${rel} (${oldStr.length} chars replaced).`;
+    }
+    case 'webfetch': {
+      const url = String(args.url || '').trim();
+      if (!/^https?:\/\//i.test(url)) return 'webfetch only supports http(s) URLs.';
+      const max = Math.min(args.max_chars ?? 8000, 40_000);
+      try {
+        const res = await fetch(url, {
+          signal: AbortSignal.timeout(15_000),
+          headers: { 'user-agent': 'nullx11code/0.1 (+https://github.com/Inkflow-Gab/nullx11code)' },
+        });
+        if (!res.ok) return `HTTP ${res.status} ${res.statusText} for ${url}`;
+        let text = await res.text();
+        // crude HTML → text (zero deps): drop script/style, then tags
+        text = text.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ');
+        text = text.replace(/<!--[\s\S]*?-->/g, ' ');
+        text = text.replace(/<\/(p|div|li|h[1-6]|tr|br|section|article)>/gi, '\n');
+        text = text.replace(/<[^>]+>/g, ' ');
+        text = text
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'");
+        text = text.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+        if (text.length > max) text = text.slice(0, max) + '\n… (truncated)';
+        return text || '(empty page)';
+      } catch (e) {
+        return `Fetch failed: ${e.message || e}`;
+      }
+    }
+    case 'todowrite': {
+      const todos = Array.isArray(args.todos) ? args.todos : [];
+      if (!ctx.todos) ctx.todos = [];
+      ctx.todos = todos.slice(0, 50);
+      if (!ctx.todos.length) return 'Todos cleared.';
+      const count = (s) => ctx.todos.filter((t) => t.status === s).length;
+      const parts = [`${count('completed')}/${ctx.todos.length} completed`];
+      for (const s of ['in_progress', 'pending', 'cancelled']) {
+        const n = count(s);
+        if (n) parts.push(`${n} ${s.replace('_', ' ')}`);
+      }
+      const active = ctx.todos.filter((t) => t.status === 'in_progress').map((t) => `"${t.content}"`);
+      return `Todos updated: ${parts.join(', ')}${active.length ? `. In progress: ${active.join(', ')}` : ''}`;
     }
     case 'shell': {
       const command = String(args.command ?? '').trim();

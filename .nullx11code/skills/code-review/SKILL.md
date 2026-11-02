@@ -16,6 +16,6 @@ When the user asks for a review (of a file, a diff, or pasted code):
    - **Maintainability**: dead code, misleading names, missing error handling.
 3. Output format:
    - First line: verdict — `APPROVE`, `APPROVE WITH NITS`, or `REQUEST CHANGES`.
-   - Then a table: `severity | file:line | issue | fix` (severity: 🔴 🟡 🟢).
+   - Then a table: `severity | file:line | issue | fix` (severity: high | medium | low).
    - End with the 2–3 highest-impact fixes as code suggestions.
 4. Never pad the review. If the code is fine, say so in one line.

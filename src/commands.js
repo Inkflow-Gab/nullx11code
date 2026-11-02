@@ -8,6 +8,38 @@ import { discoverSkills, setSkillEnabled, createSkill, suggestSkills } from './s
 import { listSessions, loadSession, saveSession } from './sessions.js';
 import { familyMeta } from './models.js';
 
+/** Resolve /models|/model argument (#, exact id, or query) and switch to it. */
+async function switchModel(ctx, models, arg) {
+  if (/^\d+$/.test(arg)) {
+    const m = models[Number(arg) - 1];
+    if (!m) return `No model #${arg} (provider has ${models.length}).`;
+    return applyModel(ctx, m.id, models);
+  }
+  if (arg === 'auto') return applyModel(ctx, guessModel(ctx.prov, models), models);
+  const exact = models.find((m) => m.id.toLowerCase() === arg.toLowerCase());
+  if (exact) return applyModel(ctx, exact.id, models);
+  const q = arg.toLowerCase();
+  const matches = models.filter((m) => m.id.toLowerCase().includes(q));
+  if (matches.length === 1) return applyModel(ctx, matches[0].id, models);
+  if (!matches.length) return `No model matches "${arg}". Try /models to list them.`;
+  // several hits → show a numbered pick list
+  const rows = matches.slice(0, 20).map((m, i) => {
+    const fam = familyMeta(m.id);
+    return [String(i + 1), hex(fam.letters, fam.color) + ' ' + fam.label, m.id];
+  });
+  return (
+    `${matches.length} models match ${c.cyan(arg)} — switch with /models <#>\n` +
+    table(['#', 'icon', 'model'], rows)
+  );
+}
+
+function applyModel(ctx, id, models) {
+  const known = models.find((m) => m.id === id);
+  ctx.model = id;
+  saveProjectConfig({ provider: ctx.prov.id, model: id }, ctx.cwd);
+  return `model ${modelBadge(ctx.prov, id)}${known?.context ? c.dim(` · ctx ${Math.round(known.context / 1024)}k`) : ''}`;
+}
+
 export const COMMANDS = [
   {
     name: 'help',
@@ -21,10 +53,14 @@ export const COMMANDS = [
       const out = [
         c.bold('  Commands'),
         helpLine('help [cmd]', 'this help'),
+        helpLine('setup [id key]', 'add an API key the easy way'),
         helpLine('model [id]', 'switch / pick the model (shows icons)'),
-        helpLine('models [ref]', 'list models of current provider'),
+        helpLine('models [query]', 'list models — or search & switch'),
         helpLine('provider [id]', 'switch AI provider'),
         helpLine('providers', 'list providers + key status'),
+        helpLine('init', 'create / improve AGENTS.md instructions'),
+        helpLine('review [ref]', 'review commits, branch or PR'),
+        helpLine('agent [mode]', 'build (default) or plan (read-only)'),
         helpLine('skills', 'manage project skills'),
         helpLine('skill on|off <n>', 'toggle one skill'),
         helpLine('new', 'start a fresh conversation'),
@@ -95,10 +131,13 @@ export const COMMANDS = [
   },
   {
     name: 'models',
-    desc: 'List models for the current provider',
-    async run(ctx) {
+    args: '[query|#|id]',
+    desc: 'List models — or search & switch: /models llama, /models 3',
+    async run(ctx, args) {
       const models = await listModels(ctx.prov, ctx.cfg, { refresh: true });
       if (!models.length) return 'No models available (endpoint unreachable and no fallback catalog).';
+      const arg = (args || '').trim();
+      if (arg) return switchModel(ctx, models, arg);
       const rows = models.slice(0, 60).map((m) => {
         const fam = familyMeta(m.id);
         return [
@@ -108,7 +147,11 @@ export const COMMANDS = [
           m.context ? c.dim(String(Math.round(m.context / 1024)) + 'k') : '',
         ];
       });
-      return `${providerBadge(ctx.prov)} models\n` + table(['', 'family', 'model', 'ctx'], rows);
+      return (
+        `${providerBadge(ctx.prov)} models\n` +
+        table(['', 'family', 'model', 'ctx'], rows) +
+        `\n${c.dim('switch: /models <query|#|id>  ·  /models llama  ·  /models 3')}`
+      );
     },
   },
   {
@@ -129,20 +172,138 @@ export const COMMANDS = [
         });
         return `${providerBadge(ctx.prov)} — pick with /model <#|id>\n` + table(['#', 'icon', 'model', ''], rows);
       }
-      const arg = args.trim();
-      let id = arg;
-      if (/^\d+$/.test(arg)) {
-        const m = models[Number(arg) - 1];
-        if (!m) return `No model #${arg}`;
-        id = m.id;
-      } else if (arg === 'auto') {
-        id = guessModel(ctx.prov, models);
+      return switchModel(ctx, models, args.trim());
+    },
+  },
+  {
+    name: 'setup',
+    args: '[provider] [key]',
+    desc: 'Add an API key the easy way — /setup groq gsk_… (writes .env, verifies)',
+    async run(ctx, args) {
+      const list = allProviders(ctx.cfg);
+      const remote = list.filter((p) => !p.local && !p.custom);
+      const parts = (args || '').trim().split(/\s+/).filter(Boolean);
+      if (parts.length < 2) {
+        // guided menu: which providers still need a key
+        const rows = remote.map((p) => [
+          hex(p.id, p.color),
+          p.free ? c.green('free') : c.dim('paid'),
+          p.detected ? c.green('key saved') : c.yellow('needs key'),
+          p.env[0] || '',
+          p.keyUrl ? c.dim(p.keyUrl.replace(/^https?:\/\//, '')) : '',
+        ]);
+        const missing = remote.filter((p) => !p.detected);
+        return [
+          table(['provider', 'cost', 'status', 'env var', 'get key at'], rows),
+          '',
+          missing.length
+            ? c.dim(`usage: /setup <provider> <key>   e.g. /setup ${missing[0].id} …`)
+            : c.green('all providers configured'),
+          c.dim('keys are appended to .env (project) — never sent anywhere but the provider'),
+        ].join('\n');
       }
-      const known = models.find((m) => m.id === id);
-      ctx.model = id;
-      saveProjectConfig({ provider: ctx.prov.id, model: id }, ctx.cwd);
-      const fam = familyMeta(id);
-      return `model ${modelBadge(ctx.prov, id)}${known?.context ? c.dim(` · ctx ${Math.round(known.context / 1024)}k`) : ''}`;
+      const id = parts[0].toLowerCase();
+      const key = parts.slice(1).join(' ').replace(/^["']|["']$/g, '');
+      const hit = remote.find((p) => p.id === id || p.name.toLowerCase().includes(id));
+      if (!hit) return `No provider "${parts[0]}". Try: ${remote.map((p) => p.id).join(', ')}`;
+      if (!hit.env.length) return `${hit.name} takes its key from config — use /config providers.${hit.id}.apiKey=…`;
+      const envName = hit.env[0];
+      // append/replace in project .env
+      const envFile = path.join(ctx.cfg._root || ctx.cwd, '.env');
+      let content = '';
+      try {
+        content = fs.readFileSync(envFile, 'utf8');
+      } catch {
+        /* fresh file */
+      }
+      const line = `${envName}=${key}`;
+      const re = new RegExp(`^\\s*(?:export\\s+)?${envName}\\s*=.*$`, 'm');
+      content = re.test(content) ? content.replace(re, line) : content.replace(/\s*$/, '\n') + line + '\n';
+      fs.writeFileSync(envFile, content);
+      // make it visible to this process + refresh provider state
+      process.env[envName] = key;
+      ctx.cfg._env = { ...(ctx.cfg._env || {}), [envName]: key };
+      ctx.prov = allProviders(ctx.cfg).find((p) => p.id === hit.id) || hit;
+      if (ctx.cfg.provider !== hit.id) {
+        ctx.cfg.provider = hit.id;
+        saveProjectConfig({ provider: hit.id }, ctx.cwd);
+      }
+      // verify against /models
+      let verdict;
+      try {
+        const res = await fetch(hit.base.replace(/\/+$/, '') + '/models', {
+          headers: { authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(6000),
+        });
+        verdict = res.ok ? c.green(`verified — /models returned ${res.status}`) : c.yellow(`endpoint answered ${res.status} — check the key`);
+      } catch (e) {
+        verdict = c.yellow(`could not verify (${e.message}) — key saved anyway`);
+      }
+      const models = await listModels(ctx.prov, ctx.cfg, { refresh: true });
+      ctx.model = guessModel(ctx.prov, models);
+      return [
+        `${c.green('saved')} ${envName} → ${c.cyan(envFile)}`,
+        `provider ${providerBadge(hit)} · ${verdict}`,
+        `model ${modelBadge(ctx.prov, ctx.model)}`,
+      ].join('\n');
+    },
+  },
+  {
+    name: 'init',
+    args: '[focus]',
+    desc: 'Create or improve AGENTS.md for this repo (project instructions)',
+    run(ctx, args) {
+      return {
+        prompt: [
+          'Create or update `AGENTS.md` for this repository.',
+          '',
+          'The goal is a compact instruction file that helps future sessions avoid mistakes and ramp up quickly.',
+          'Every line should answer: "Would an agent likely miss this without help?" If not, leave it out.',
+          '',
+          'User-provided focus (honor this): ' + (args || '(none)'),
+          '',
+          'Read the highest-value sources first: README*, manifests, build/test/lint config, CI workflows,',
+          'existing instruction files (AGENTS.md, CLAUDE.md, .cursor/rules/), and the real entrypoints of the code.',
+          'Prefer executable sources of truth over prose.',
+          '',
+          'Extract: exact developer commands (esp. non-obvious ones), command order (lint → typecheck → test),',
+          'architecture facts not obvious from filenames, framework/toolchain quirks, testing quirks,',
+          'setup requirements and environment gotchas.',
+          '',
+          'Exclude: generic software advice, tutorials, exhaustive file trees, speculative claims.',
+          'When in doubt, omit. Prefer short sections and bullets.',
+          `If AGENTS.md already exists at ${ctx.root}, improve it in place — preserve verified guidance, delete fluff.`,
+        ].join('\n'),
+      };
+    },
+  },
+  {
+    name: 'review',
+    args: '[commit|branch|pr]',
+    desc: 'Review code changes (defaults to uncommitted)',
+    run(ctx, args) {
+      return {
+        prompt: [
+          'You are a code reviewer. Review code changes and provide actionable feedback.',
+          '',
+          `Input: ${args || '(none — review uncommitted changes)'}`,
+          '',
+          'Determine what to review:',
+          '- No arguments: run `git diff`, `git diff --cached`, `git status --short` (untracked files too).',
+          '- 40-char or short hash: `git show <hash>`.',
+          '- Branch name: `git diff <branch>...HEAD`.',
+          '- PR URL/number: `gh pr view <x>` and `gh pr diff <x>`.',
+          '',
+          'Diffs alone are not enough — read the full files being modified for context.',
+          'Look for: bugs first (logic errors, edge cases, security, broken error handling),',
+          'then structure (does it fit the codebase), then obvious performance problems,',
+          'then unintended behavior changes.',
+          '',
+          'Be certain before flagging a bug; investigate with your tools if unsure.',
+          'Do not review pre-existing code that was not modified. Do not be a zealot about style.',
+          'Output: direct, severity-weighted, matter-of-fact. No flattery, no filler.',
+        ].join('\n'),
+      };
     },
   },
   {
@@ -214,6 +375,38 @@ export const COMMANDS = [
     },
   },
   {
+    name: 'agent',
+    args: '[build|plan]',
+    desc: 'Switch agent mode — plan is read-only (opencode-style)',
+    run(ctx, args) {
+      const mode = (args || '').trim().toLowerCase();
+      const current = ctx.agent || 'build';
+      if (!mode) {
+        return [
+          `agent ${c.bold(current)}`,
+          table(
+            ['mode', 'behavior'],
+            [
+              ['build', c.dim('full access — writes/shell ask for approval')],
+              ['plan', c.dim('read-only analysis — edits denied, shell still asks')],
+            ]
+          ),
+          c.dim('/agent plan  ·  /agent build'),
+        ].join('\n');
+      }
+      if (mode !== 'build' && mode !== 'plan') return `Unknown agent "${args}" — use build or plan.`;
+      ctx.agent = mode;
+      // refresh the live system prompt so the mode takes effect immediately
+      if (ctx.messages?.[0]?.role === 'system' && typeof ctx.systemPrompt === 'function') {
+        ctx.messages[0].content = ctx.systemPrompt();
+      }
+      if (mode === 'plan') {
+        return c.cyan('agent → plan') + c.dim(' — read-only: file edits are denied, shell commands still ask.');
+      }
+      return c.green('agent → build') + c.dim(' — full access with approvals.');
+    },
+  },
+  {
     name: 'new',
     desc: 'Start a fresh conversation',
     run(ctx) {
@@ -223,9 +416,8 @@ export const COMMANDS = [
   },
   {
     name: 'clear',
-    desc: 'Clear the screen',
+    desc: 'Clear the screen (reprints the header)',
     run(ctx) {
-      if (process.stdout.isTTY) process.stdout.write('\x1b[2J\x1b[H');
       ctx.clearScreen?.();
       return null;
     },

@@ -135,6 +135,92 @@ test('slash commands: find + complete + required set', () => {
   for (const required of ['help', 'model', 'provider', 'skills', 'serve', 'doctor', 'quit']) {
     assert.ok(COMMANDS.find((c) => c.name === required), `missing command ${required}`);
   }
+  // opencode-ported commands
+  for (const oc of ['setup', 'init', 'review', 'agent']) {
+    assert.ok(COMMANDS.find((c) => c.name === oc), `missing opencode command ${oc}`);
+  }
+});
+
+test('agent command switches build/plan modes', () => {
+  const agent = COMMANDS.find((c) => c.name === 'agent');
+  const ctx = { agent: 'build', messages: [{ role: 'system', content: 'SYS' }], systemPrompt: () => 'SYS' };
+  const out = agent.run(ctx, 'plan');
+  assert.equal(ctx.agent, 'plan');
+  assert.match(out, /plan/);
+  assert.equal(ctx.messages[0].content, 'SYS'); // system prompt refreshed
+  agent.run(ctx, 'build');
+  assert.equal(ctx.agent, 'build');
+  assert.match(agent.run(ctx, 'nope'), /Unknown agent/);
+});
+
+test('/models switches by #, id, or query (opencode-style search)', async () => {
+  const models = COMMANDS.find((c) => c.name === 'models');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'n11-models-'));
+  const ctx = {
+    prov: {
+      id: 'x',
+      name: 'X',
+      color: '#fff',
+      base: 'http://127.0.0.1:1',
+      fallback: ['meta/llama-3.3-70b-instruct', 'qwen/qwen2.5-coder', 'other/model-1'],
+    },
+    cfg: {},
+    cwd: tmp, // applyModel persists config — keep it out of the repo
+    model: 'a',
+  };
+  // note: fs/os/path are imported at the top of this file
+  // no args → list with a switch hint
+  const list = await models.run(ctx, '');
+  assert.match(list, /switch: \/models/);
+  // query with one match → switches
+  const q = await models.run(ctx, 'llama');
+  assert.match(q, /model /);
+  // # → switches
+  const byNum = await models.run(ctx, '1');
+  assert.match(byNum, /model /);
+  // no match → helpful error
+  const miss = await models.run(ctx, 'zzz-not-a-model');
+  assert.match(miss, /No model matches/);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('/setup writes a key to .env and switches provider', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'n11-setup-'));
+  fs.mkdirSync(path.join(root, '.nullx11code'), { recursive: true });
+  const setup = COMMANDS.find((c) => c.name === 'setup');
+  const ctx = {
+    cwd: root,
+    cfg: { _root: root, _env: {}, providers: {} },
+    prov: null,
+    model: null,
+    messages: [],
+  };
+  // menu mode (no args) lists providers
+  const menu = await setup.run(ctx, '');
+  assert.match(menu, /usage: \/setup/);
+  // save a key — verification hits the real network but must not throw
+  const saved = await setup.run(ctx, 'groq gsk_test_key_123');
+  const env = fs.readFileSync(path.join(root, '.env'), 'utf8');
+  assert.match(env, /GROQ_API_KEY=gsk_test_key_123/);
+  assert.match(saved, /saved/);
+  assert.equal(process.env.GROQ_API_KEY, 'gsk_test_key_123');
+  delete process.env.GROQ_API_KEY;
+  // unknown provider → error
+  const bad = await setup.run(ctx, 'nope key');
+  assert.match(bad, /No provider/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('loadInstructions discovers AGENTS.md and CLAUDE.md', async () => {
+  const { loadInstructions } = await import('../src/config.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'n11-agents-'));
+  assert.deepEqual(loadInstructions(root), []);
+  fs.writeFileSync(path.join(root, 'AGENTS.md'), '# Rules\nUse tabs.');
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), 'Prefer pipes.');
+  const files = loadInstructions(root);
+  assert.equal(files.length, 2);
+  assert.match(files[0].text, /Use tabs/);
+  fs.rmSync(root, { recursive: true, force: true });
 });
 
 test('tool schemas are valid OpenAI function specs', () => {

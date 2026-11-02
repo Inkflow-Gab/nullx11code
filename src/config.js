@@ -171,3 +171,34 @@ export function skillDirs(cfg, cwd = process.cwd()) {
   if (!dirs.includes(homeShort)) dirs.push(homeShort);
   return dirs;
 }
+
+/** Instruction files auto-loaded into the system prompt (opencode-style AGENTS.md discovery). */
+export function loadInstructions(root = projectRoot()) {
+  const files = [];
+  const seen = new Set();
+  const candidates = [
+    path.join(root, 'AGENTS.md'),
+    path.join(root, 'CLAUDE.md'),
+    path.join(root, '.nullx11', 'AGENTS.md'),
+    path.join(root, '.nullx11code', 'AGENTS.md'),
+    path.join(globalDir(), 'AGENTS.md'),
+  ];
+  let total = 0;
+  for (const p of candidates) {
+    if (total > 48 * 1024) break;
+    const key = path.resolve(p);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    try {
+      const st = fs.statSync(p);
+      if (!st.isFile() || st.size > 32 * 1024) continue;
+      const text = fs.readFileSync(p, 'utf8').trim();
+      if (!text) continue;
+      files.push({ path: p, text });
+      total += text.length;
+    } catch {
+      /* missing file */
+    }
+  }
+  return files;
+}

@@ -26,7 +26,7 @@
 
 - **Zero dependencies** — one Node script, no `node_modules` graveyard, runs on anything with Node ≥ 18 (including Termux on Android).
 - **Free-first providers** — NVIDIA NIM, Groq, Cerebras, OpenRouter `:free`, Gemini, Mistral, GitHub Models, local Ollama/LM Studio. Keys auto-detected from env / `.env` / config; free ones are preferred automatically.
-- **Model auto-detect + icons** — fetches `/models`, picks the best free model, and shows every model with its family icon (Llama 🦙, Qwen, DeepSeek, Nemotron… — SVG in the web UI, colored monogram chips in the terminal).
+- **Model auto-detect + icons** — fetches `/models`, picks the best free model, and shows every model with its family icon (Llama, Qwen, DeepSeek, Nemotron… — SVG in the web UI, colored monogram chips in the terminal).
 - **Skills are folders** — point a project at *any* folder of `SKILL.md`s; toggle them per project; active ones inject into the system prompt.
 - **`/`slash commands** — `/model`, `/skills`, `/provider`, `/serve`, `/doctor`… with tab completion, like opencode.
 - **Agent tools with approval** — reads/greps/lists freely; every **write** and **shell** command waits for your `[y/n/a]`.
@@ -61,13 +61,23 @@ The CLI is line-based ANSI with auto-width, no mouse, and no bracketed-paste tri
 
 ### 2. Add a free API key
 
-Put **one** free key in `.env` (project) or `~/.nullx11code/.env` (global):
+Easiest — from inside the CLI (writes `.env`, verifies the key, switches provider):
+
+```
+/setup nvidia nvapi-…
+/setup groq gsk_…
+/setup            → shows which providers still need a key + where to get one
+```
+
+Or by hand — put **one** free key in `.env` (project) or `~/.nullx11code/.env` (global):
 
 ```sh
 echo "NVIDIA_API_KEY=nvapi-…" >> .env        # build.nvidia.com
 echo "GROQ_API_KEY=gsk_…" >> .env            # console.groq.com
 # more free keys: .env.example
 ```
+
+The web UI sidebar also shows an **Add a free key** panel until every provider is configured.
 
 ### 3. Verify
 
@@ -128,15 +138,20 @@ npm rm -g nullx11code
 
 ## Slash commands
 
-Typed **inside the chat** (Tab-completes, prefix works: `/ex` → `/extra`):
+Typed **inside the chat** (Tab-completes, prefix works: `/ex` → `/extra`).
+Ported from [opencode](https://github.com/anomalyco/opencode): `/setup`, `/init`, `/review`, `/agent`:
 
 | Command | Description |
 |---|---|
 | `/help [cmd]` | help (incl. your custom `.nullx11` commands) |
+| `/setup [id key]` | **add an API key the easy way** — writes `.env`, verifies, switches |
 | `/model [id\|#]` | switch model (shows family icons) |
-| `/models` | list models of current provider |
+| `/models [query\|#]` | list models — or **search & switch**: `/models llama` |
 | `/provider [id]` | switch provider |
 | `/providers` | all providers + key status |
+| `/init [focus]` | create / improve `AGENTS.md` project instructions |
+| `/review [ref]` | review a commit, branch or PR (opencode-style) |
+| `/agent [build\|plan]` | build = full access · plan = **read-only** (edits denied) |
 | `/skills`, `/skill on\|off <n>` | manage skills |
 | `/new`, `/clear` | fresh chat / clear screen |
 | `/history`, `/load <id>` | saved sessions |
@@ -191,7 +206,7 @@ always: false
 | `/skills on\|off <name>` | toggle (persists in `.nullx11code/config.json`) |
 
 Discovery order: config `skills.dirs` → project `.nullx11code/skills` → project `skills/` → global `~/.nullx11code/skills`.
-When a message looks like it matches an inactive skill, the CLI hints: `💡 skill "code-review" may apply`.
+When a message looks like it matches an inactive skill, the CLI hints: `skill "code-review" may apply`.
 
 Four ready-made skills ship in [`examples/skills/`](examples/skills): `code-review`, `commit-msg`, `sql-helper`, `explain-repo`.
 
@@ -215,7 +230,8 @@ Do the following for: $ARGUMENTS
 ```
 
 - **Prefix peek**: typing `/ex` shows `→ /extra  Create a polished animation… (from /ex)` and runs it — even though the builtin `/exit` also starts with `ex` (unique custom match wins; if several match you get a candidate list).
-- **`$ARGUMENTS`** is replaced by whatever you type after the command; if the body has no placeholder, your words are appended.
+- **`$ARGUMENTS`** is replaced by whatever you type after the command; **`$1`…`$9`** are positional words; if the body has no placeholder, your words are appended.
+- **`` !`shell` ``** — opencode-style shell interpolation: a command body can inline live output, e.g. `` !`git diff` `` or `` !`git status --short` `` (runs in the project root, 5s timeout).
 - The expanded prompt is sent to the model like a normal message (skills + tools still apply).
 - `/help` lists them under **Custom commands** with description + example; Tab-completion includes them too.
 - Extra folders can be added via config: `"commands": { "dirs": ["/path/to/cmds"] }`.
@@ -226,17 +242,17 @@ Two are bundled: `.nullx11/extra.md` (animation creator) and `.nullx11/commands/
 
 | Provider | Cost | Key env var | Notes |
 |---|---|---|---|
-| **NVIDIA NIM** | 🟢 free | `NVIDIA_API_KEY` | flagship — free credits, no card |
-| **Groq** | 🟢 free | `GROQ_API_KEY` | free tier, very fast |
-| **Cerebras** | 🟢 free | `CEREBRAS_API_KEY` | free developer tier |
-| **OpenRouter** | 🟢 free | `OPENROUTER_API_KEY` | hundreds of models, `:free` ids |
-| **Google Gemini** | 🟢 free | `GEMINI_API_KEY` | free Flash tier |
-| **Mistral** | 🟢 free | `MISTRAL_API_KEY` | free credits |
-| **GitHub Models** | 🟢 free | `GITHUB_TOKEN` | free with your GH token |
-| **Ollama** | 🟢 free | — | local, offline |
-| **LM Studio** | 🟢 free | — | local server |
-| Together AI | 🔵 paid | `TOGETHER_API_KEY` | optional |
-| OpenAI | 🔵 paid | `OPENAI_API_KEY` | optional |
+| **NVIDIA NIM** | free | `NVIDIA_API_KEY` | flagship — free credits, no card |
+| **Groq** | free | `GROQ_API_KEY` | free tier, very fast |
+| **Cerebras** | free | `CEREBRAS_API_KEY` | free developer tier |
+| **OpenRouter** | free | `OPENROUTER_API_KEY` | hundreds of models, `:free` ids |
+| **Google Gemini** | free | `GEMINI_API_KEY` | free Flash tier |
+| **Mistral** | free | `MISTRAL_API_KEY` | free credits |
+| **GitHub Models** | free | `GITHUB_TOKEN` | free with your GH token |
+| **Ollama** | free | — | local, offline |
+| **LM Studio** | free | — | local server |
+| Together AI | paid | `TOGETHER_API_KEY` | optional |
+| OpenAI | paid | `OPENAI_API_KEY` | optional |
 | *custom* | — | config `providers.custom` | any OpenAI-compatible endpoint |
 
 Keys are read from: process env → `~/.nullx11code/.env` → `./.env` → config. **Keys never leave your machine** — the web UI proxies through the local server only.
@@ -248,10 +264,15 @@ Keys are read from: process env → `~/.nullx11code/.env` → `./.env` → confi
 | `list_files` | automatic |
 | `read_file` | automatic |
 | `grep` | automatic |
+| `glob` | automatic — find files by pattern (`**/*.ts`) |
+| `webfetch` | automatic — fetch a URL as plain text |
+| `todowrite` | automatic — plan/task tracking |
+| `edit` | **asks** (`y/n/a`) — exact-string replace |
 | `write_file` | **asks** (`y/n/a`) |
 | `shell` | **asks** (`y/n/a`) |
 
 `a` = always approve this kind for the session. Print mode auto-rejects mutations unless `-y`.
+In `/agent plan` mode, `edit`/`write_file`/`shell` are denied outright (read-only analysis).
 
 ## Configuration
 
