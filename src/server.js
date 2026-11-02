@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { VERSION, loadConfig, saveProjectConfig } from './config.js';
+import { VERSION, loadConfig, saveProjectConfig, loadInstructions } from './config.js';
 import { allProviders, resolveProvider, listModels, guessModel } from './providers.js';
 import { discoverSkills, setSkillEnabled, skillsPrompt } from './skills.js';
 import { discoverExtras } from './extracmds.js';
@@ -110,6 +110,8 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
             color: x.color,
             free: x.free,
             local: !!x.local,
+            custom: !!x.custom,
+            hasEnv: !!(x.env && x.env.length),
             detected: x.detected,
             base: x.base,
             notes: x.notes,
@@ -198,6 +200,32 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
           return sendJSON(res, 200, { ok: true });
         }
 
+        if (p === '/api/keys' && req.method === 'POST') {
+          // easy key setup from the browser — writes .env like /setup does
+          const { provider, key } = JSON.parse((await readBody(req)) || '{}');
+          const list = allProviders(cfg);
+          const hit = list.find((x) => x.id === provider && !x.local && !x.custom);
+          if (!hit) return sendJSON(res, 404, { error: 'unknown provider' });
+          if (!hit.env?.length) return sendJSON(res, 400, { error: `${hit.name} uses config, not .env` });
+          const clean = String(key || '').trim().replace(/^["']|["']$/g, '');
+          if (!clean) return sendJSON(res, 400, { error: 'key required' });
+          const envName = hit.env[0];
+          const envFile = path.join(cfg._root, '.env');
+          let content = '';
+          try {
+            content = fs.readFileSync(envFile, 'utf8');
+          } catch {
+            /* fresh file */
+          }
+          const line = `${envName}=${clean}`;
+          const re = new RegExp(`^\\s*(?:export\\s+)?${envName}\\s*=.*$`, 'm');
+          content = re.test(content) ? content.replace(re, line) : content.replace(/\s*$/, '\n') + line + '\n';
+          fs.writeFileSync(envFile, content);
+          process.env[envName] = clean;
+          reloadCfg();
+          return sendJSON(res, 200, { ok: true, provider: hit.id, envVar: envName, file: envFile });
+        }
+
         if (p === '/api/chat' && req.method === 'POST') {
           const body = JSON.parse((await readBody(req)) || '{}');
           const prov = resolveProvider(cfg, body.provider || cfg.provider);
@@ -206,9 +234,13 @@ export async function startServer({ port = 7860, host = '0.0.0.0', cfg: cfgIn, c
           const skills = discoverSkills(cfg, cwd);
           const enabledSkills = skills.filter((s) => (body.skills ? body.skills.includes(s.name) : s.enabled));
 
+          const instructions = loadInstructions(cfg._root)
+            .map((f) => `# Instructions from ${f.path}\n\n${f.text}`)
+            .join('\n\n');
           const baseSys = [
             `You are nullx11code, a concise AI coding agent running in a web UI connected to the local project at ${cfg._root}.`,
             'Use the provided tools when file context is unknown. The user approves write_file and shell actions.',
+            instructions,
             cfg.systemPrompt || '',
             skillsPrompt(enabledSkills),
           ]

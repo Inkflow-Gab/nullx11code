@@ -3,7 +3,7 @@ import readline from 'node:readline';
 import path from 'node:path';
 import fs from 'node:fs';
 import { c, hex, banner, modelBadge, providerBadge, md, Spinner, setColors, colorsEnabled, width, familyChip } from './ui.js';
-import { loadConfig, VERSION, projectDir } from './config.js';
+import { loadConfig, VERSION, projectDir, loadInstructions } from './config.js';
 import { allProviders, resolveProvider, listModels, guessModel } from './providers.js';
 import { discoverSkills, skillsPrompt, suggestSkills } from './skills.js';
 import { createSession, saveSession, loadSession } from './sessions.js';
@@ -86,6 +86,7 @@ export async function runInteractive(opts = {}) {
     messages: [],
     settings,
     quitting: false,
+    agent: 'build', // opencode-style: build (full) | plan (read-only)
   };
 
   state.refreshSkills = () => {
@@ -97,7 +98,16 @@ export async function runInteractive(opts = {}) {
   };
   state.systemPrompt = () => {
     const skills = skillsPrompt(state.skills);
-    return [BASE_PROMPT(state.root, prov.name), cfg.systemPrompt || '', skills].filter(Boolean).join('\n\n');
+    const instructions = loadInstructions(state.root)
+      .map((f) => `# Instructions from ${path.relative(state.root, f.path) || f.path}\n\n${f.text}`)
+      .join('\n\n');
+    const planNote =
+      state.agent === 'plan'
+        ? 'You are in PLAN mode: read-only analysis. Do not call write_file or shell — reason and report instead.'
+        : '';
+    return [BASE_PROMPT(state.root, prov.name), instructions, planNote, cfg.systemPrompt || '', skills]
+      .filter(Boolean)
+      .join('\n\n');
   };
   state.newSession = () => {
     state.session = createSession({ provider: prov.id, model, cwd, project: true });
@@ -115,7 +125,6 @@ export async function runInteractive(opts = {}) {
   state.quit = () => {
     state.quitting = true;
   };
-  state.clearScreen = () => {};
 
   state.refreshSkills();
   state.refreshExtras();
@@ -128,12 +137,12 @@ export async function runInteractive(opts = {}) {
     }
   }
 
-  // ---- banner ----
-  if (process.stdout.isTTY) {
+  // ---- header (printed on launch and after /clear, like opencode) ----
+  const printHeader = () => {
     console.log(
       banner({
-        prov,
-        model,
+        prov: state.prov,
+        model: state.model,
         skills: state.skills.filter((s) => s.enabled).length,
         providers: allProviders(cfg).filter((p) => p.detected).length,
       })
@@ -147,11 +156,23 @@ export async function runInteractive(opts = {}) {
     }
     const undetected = allProviders(cfg).filter((p) => !p.detected && !p.local);
     if (!allProviders(cfg).some((p) => p.detected)) {
-      console.log(`  ${c.yellow('!')} ${c.dim('no API keys yet — free: put NVIDIA_API_KEY=… in .env, then /doctor')}`);
+      console.log(`  ${c.yellow('!')} ${c.dim('no API keys yet — free: /setup nvidia <key> or put NVIDIA_API_KEY=… in .env')}`);
     } else if (undetected.length) {
       console.log(`  ${c.dim('keys missing:')} ${c.dim(undetected.slice(0, 6).map((p) => p.id).join(', '))}`);
     }
     console.log('');
+  };
+  state.clearScreen = () => {
+    if (process.stdout.isTTY) {
+      process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
+      printHeader();
+    }
+  };
+
+  // ---- launch: clear the window like opencode, then print the header ----
+  if (process.stdout.isTTY) {
+    process.stdout.write('\x1b[2J\x1b[3J\x1b[H'); // clear screen + scrollback + home
+    printHeader();
   }
 
   // ---- approval plumbing ----
@@ -159,6 +180,11 @@ export async function runInteractive(opts = {}) {
   let rl = null;
 
   const askApproval = (action) => {
+    // plan agent: deny mutations outright (opencode plan-mode behavior)
+    if (state.agent === 'plan' && (action.kind === 'write' || action.kind === 'shell')) {
+      console.log(c.dim(`  denied (plan agent): ${action.title} — switch with /agent build`));
+      return Promise.resolve(false);
+    }
     if (!process.stdin.isTTY) {
       // non-interactive: allow reads only
       return Promise.resolve(action.kind === 'read' || action.kind === 'list' || action.kind === 'grep');
@@ -296,18 +322,24 @@ export async function runInteractive(opts = {}) {
         const m = res.match;
         if (m.kind === 'builtin') {
           const out = await state.cmd(m.name, args);
-          if (out) console.log('\n' + out + '\n');
-          if (state.quitting) {
-            rlInterface.close();
+          // commands may return { prompt } to run as a chat turn (opencode /init, /review)
+          if (out && typeof out === 'object' && out.prompt) {
+            text = out.prompt;
+          } else {
+            if (out) console.log('\n' + out + '\n');
+            if (state.quitting) {
+              rlInterface.close();
+              return;
+            }
+            promptLine();
             return;
           }
-          promptLine();
-          return;
+        } else {
+          // extra command → expand $ARGUMENTS / $1.. / !`shell` and send as a chat turn
+          const expanded = renderExtra(m.ref, args, { root: state.root });
+          console.log(c.dim(`  > /${m.name} ${args ? c.dim('· ' + args) : ''}`));
+          text = expanded;
         }
-        // extra command → expand $ARGUMENTS and send as a chat turn
-        const expanded = renderExtra(m.ref, args);
-        console.log(c.dim(`  ⚡ /${m.name} ${args ? c.dim('· ' + args) : ''}`));
-        text = expanded;
       } else if (head.length > 1) {
         console.log(c.dim(`  unknown command ${head} — try /help${state.extras.length ? ' or /' + state.extras[0].name : ''}`));
         promptLine();
@@ -323,7 +355,7 @@ export async function runInteractive(opts = {}) {
     // skill suggestion hint
     const hints = suggestSkills(state.skills, text);
     if (hints.length) {
-      console.log(c.dim(`  💡 skill "${hints[0].name}" may apply — /skills on ${hints[0].name}`));
+      console.log(c.dim(`  i skill "${hints[0].name}" may apply — /skills on ${hints[0].name}`));
     }
 
     printAssistantHeader();
@@ -358,7 +390,7 @@ export async function runInteractive(opts = {}) {
             .filter(([k]) => k !== 'content')
             .map(([k, v]) => `${k}=${String(v).slice(0, 60)}`)
             .join(' ');
-          console.log(c.dim(`  ⚙ ${ev.name} ${c.bold(argStr)}`));
+          console.log(c.dim(`  * ${ev.name} ${c.bold(argStr)}`));
         } else if (ev.type === 'tool_end') {
           const firstLine = String(ev.result).split('\n')[0].slice(0, 100);
           console.log(c.dim(`    → ${firstLine}`));
@@ -414,7 +446,7 @@ export async function runInteractive(opts = {}) {
   rlInterface.on('close', () => {
     if (busy && abort) abort.abort();
     console.log('');
-    console.log(c.dim('  bye — session saved. 👋'));
+    console.log(c.dim('  bye — session saved.'));
     persist();
     process.exit(0);
   });

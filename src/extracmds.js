@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { globalDir, projectDir, projectRoot } from './config.js';
 import { parseFrontmatter } from './skills.js';
 
@@ -91,11 +92,51 @@ export function discoverExtras(cfg, cwd = process.cwd()) {
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Fill $ARGUMENTS (or append) to build the final prompt. */
-export function renderExtra(extra, args = '') {
+/**
+ * Build the final prompt from a command template (opencode-style).
+ * Supports:
+ *   $ARGUMENTS            — everything the user typed after the command
+ *   $1..$9                — positional words ($N swallows the rest)
+ *   !`shell command`      — runs the command in `root` and inlines its stdout
+ * If the template has none of these and args were given, args are appended.
+ */
+export function renderExtra(extra, args = '', opts = {}) {
+  const root = opts.root || process.cwd();
+  const shell = opts.shell !== false;
   const a = String(args || '').trim();
-  if (extra.body.includes('$ARGUMENTS')) return extra.body.split('$ARGUMENTS').join(a);
-  return a ? `${extra.body}\n\n${a}` : extra.body;
+  const body = String(extra.body || '');
+
+  // tokenise args like opencode: quoted strings stay whole
+  const tokens = a ? (a.match(/"[^"]*"|'[^']*'|[^\s"']+/g) || []).map((t) => t.replace(/^["']|["']$/g, '')) : [];
+  const hasArgsPlaceholder = /\$(?:ARGUMENTS|[1-9]\d*)/.test(body);
+  const numbers = [...body.matchAll(/\$([1-9]\d*)/g)].map((m) => Number(m[1]));
+  const last = Math.max(0, ...numbers);
+
+  let text = body.replace(/\$(?:ARGUMENTS|([1-9]\d*))/g, (match, num) => {
+    if (match === '$ARGUMENTS') return a;
+    const pos = Number(num);
+    const i = pos - 1;
+    if (i >= tokens.length) return '';
+    return pos === last ? tokens.slice(i).join(' ') : tokens[i];
+  });
+  if (!hasArgsPlaceholder && a) text = `${text}\n\n${a}`;
+
+  // opencode shell interpolation: !`git diff`
+  if (shell && /!`/.test(text)) {
+    text = text.replace(/!`([^`]+)`/g, (match, cmd) => {
+      try {
+        const out = execFileSync(process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
+          process.platform === 'win32' ? ['/d', '/s', '/c', cmd] : ['-c', cmd],
+          { cwd: root, timeout: 5000, encoding: 'utf8', maxBuffer: 1024 * 1024, windowsHide: true });
+        const trimmed = String(out || '').trim();
+        return trimmed.length > 10_000 ? trimmed.slice(0, 10_000) + '\n… (truncated)' : trimmed;
+      } catch (e) {
+        const msg = String(e.message || e).split('\n')[0].slice(0, 200);
+        return `(${cmd} failed: ${msg})`;
+      }
+    });
+  }
+  return text.trim();
 }
 
 /**

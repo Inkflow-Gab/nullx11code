@@ -2,6 +2,10 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
+/* own vector avatars — no emoji */
+const USER_SVG = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.75"/><path d="M4.5 20.5c1.2-3.4 4-5.5 7.5-5.5s6.3 2.1 7.5 5.5"/></svg>`;
+const TOOL_SVG = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg>`;
+
 const state = {
   version: '0.1.0',
   providers: [],
@@ -472,6 +476,59 @@ function renderProviders() {
   sel.innerHTML = state.providers
     .map((p) => `<option value="${p.id}" ${p.id === state.provider ? 'selected' : ''}>${escapeHtml(p.name)}${p.free ? ' · free' : ''}${p.detected ? '' : ' · no key'}</option>`)
     .join('');
+  renderKeySetup();
+}
+
+/* show the easy key panel only while at least one remote provider lacks a key */
+function renderKeySetup() {
+  const panel = $('#key-setup');
+  if (!panel) return;
+  const needy = state.providers.filter((p) => !p.detected && !p.local && p.hasEnv);
+  if (!needy.length) {
+    panel.classList.add('hidden');
+    return;
+  }
+  panel.classList.remove('hidden');
+  const sel = $('#key-provider');
+  const cur = sel.value;
+  sel.innerHTML = needy
+    .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}${p.free ? ' · free' : ''}</option>`)
+    .join('');
+  if (cur && needy.some((p) => p.id === cur)) sel.value = cur;
+  updateKeyLink();
+}
+
+function updateKeyLink() {
+  const p = state.providers.find((x) => x.id === $('#key-provider')?.value);
+  const link = $('#key-link');
+  if (!link) return;
+  if (p?.keyUrl) {
+    link.href = p.keyUrl;
+    link.textContent = `get a ${p.free ? 'free ' : ''}key at ${p.keyUrl.replace(/^https?:\/\//, '')} →`;
+    link.classList.remove('hidden');
+  } else {
+    link.classList.add('hidden');
+  }
+}
+
+async function saveKey() {
+  const provider = $('#key-provider').value;
+  const key = $('#key-input').value.trim();
+  if (!key) return toast('paste a key first');
+  try {
+    const res = await api('/api/keys', { method: 'POST', body: { provider, key } });
+    if (res.error) return toast(res.error);
+    $('#key-input').value = '';
+    toast(`key saved to .env (${res.envVar})`);
+    const data = await api('/api/state');
+    state.providers = data.providers;
+    renderProviders();
+    state.provider = provider;
+    $('#provider-select').value = provider;
+    await loadModels(true);
+  } catch (e) {
+    toast('save failed: ' + e.message);
+  }
 }
 
 async function loadModels(refresh = false) {
@@ -597,7 +654,7 @@ function renderMessages() {
   }
   box.innerHTML = state.messages
     .map((m) => {
-      const avatar = m.role === 'user' ? '🙂' : `<img src="/assets/icons/app-icon.svg" width="17" height="17" alt="">`;
+      const avatar = m.role === 'user' ? USER_SVG : `<img src="/assets/icons/app-icon.svg" width="17" height="17" alt="">`;
       const body = m.role === 'user' ? escapeHtml(m.content) : renderMarkdown(m.content || '');
       return `<div class="msg ${m.role}"><div class="avatar">${avatar}</div><div class="bubble">${body}</div></div>`;
     })
@@ -622,7 +679,7 @@ function appendLive(role) {
   box.querySelector('.empty-state')?.remove();
   const div = document.createElement('div');
   div.className = `msg ${role}`;
-  const avatar = role === 'user' ? '🙂' : `<img src="/assets/icons/app-icon.svg" width="17" height="17" alt="">`;
+  const avatar = role === 'user' ? USER_SVG : `<img src="/assets/icons/app-icon.svg" width="17" height="17" alt="">`;
   div.innerHTML = `<div class="avatar">${avatar}</div><div class="bubble"></div>`;
   box.appendChild(div);
   scrollBottom();
@@ -637,7 +694,7 @@ function appendToolEvent(name, args = {}) {
     .filter(([k]) => k !== 'content')
     .map(([k, v]) => `${k}=${String(v).slice(0, 60)}`)
     .join(' ');
-  div.innerHTML = `<div class="avatar">⚙</div><div class="bubble"><div class="tool-event"><b>${escapeHtml(name)}</b> <span>${escapeHtml(argStr)}</span></div></div>`;
+  div.innerHTML = `<div class="avatar">${TOOL_SVG}</div><div class="bubble"><div class="tool-event"><b>${escapeHtml(name)}</b> <span>${escapeHtml(argStr)}</span></div></div>`;
   box.appendChild(div);
   scrollBottom();
   return div.querySelector('.tool-event');
@@ -836,6 +893,15 @@ function bindUI() {
       toast(err.message);
     }
   };
+
+  $('#key-provider').onchange = updateKeyLink;
+  $('#key-save').onclick = saveKey;
+  $('#key-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveKey();
+    }
+  });
 
   $('#add-skills').onclick = async () => {
     const dir = $('#skill-dir').value.trim();

@@ -135,32 +135,44 @@
     <h2>Built for how you actually work</h2>
     <div class="grid">
       <article class="card">
-        <div class="card-ico" style="--c:#76B900">⚡</div>
+        <div class="card-ico" style="--c:#76B900">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12L13 2z"/></svg>
+        </div>
         <h3>Free providers, auto-detected</h3>
         <p>NVIDIA NIM, Groq, Cerebras, OpenRouter <code>:free</code>, Gemini, Mistral, GitHub Models, local Ollama — drop a key in <code>.env</code> and it just appears.</p>
       </article>
       <article class="card">
-        <div class="card-ico" style="--c:#4E8CFF">🔎</div>
+        <div class="card-ico" style="--c:#4E8CFF">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M21 21l-5-5"/><path d="M8 10.5h5M10.5 8v5"/></svg>
+        </div>
         <h3>Model auto-detect + icons</h3>
         <p>The agent fetches <code>/models</code>, picks the best free one, and shows every model with its family icon — Llama, Qwen, DeepSeek, Nemotron…</p>
       </article>
       <article class="card">
-        <div class="card-ico" style="--c:#F55036">🧩</div>
+        <div class="card-ico" style="--c:#F55036">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+        </div>
         <h3>Skills are just folders</h3>
         <p>Point the project at any folder of <code>SKILL.md</code>s. Toggle them per project. They inject into the system prompt only when active.</p>
       </article>
       <article class="card">
-        <div class="card-ico" style="--c:#6C72E5">⌨️</div>
+        <div class="card-ico" style="--c:#6C72E5">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M6.5 9.5l3 2.5-3 2.5M11.5 14.5h6"/></svg>
+        </div>
         <h3>/slash commands</h3>
         <p><code>/model</code>, <code>/skills</code>, <code>/provider</code>, <code>/serve</code>, <code>/doctor</code>… with tab-completion, exactly like opencode.</p>
       </article>
       <article class="card">
-        <div class="card-ico" style="--c:#FA5010">🛠️</div>
+        <div class="card-ico" style="--c:#FA5010">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18v3h3l5.7-5.7a4.5 4.5 0 0 0 6-6l-2.6 2.6-2.4-2.4 2.6-2.6z"/></svg>
+        </div>
         <h3>Agent tools, human approval</h3>
         <p>Reads, greps and lists files freely — every write and shell command waits for your <code>[y/n/a]</code>.</p>
       </article>
       <article class="card">
-        <div class="card-ico" style="--c:#3DDC84">📱</div>
+        <div class="card-ico" style="--c:#3DDC84">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>
+        </div>
         <h3>Mobile-friendly CLI</h3>
         <p>Line-based ANSI, auto-width, no mouse, no bracketed paste traps. Runs in Termux next to your prompt.</p>
       </article>
@@ -199,6 +211,15 @@
         <select id="model-select" class="input grow"></select>
       </div>
       <div class="model-meta" id="model-meta"></div>
+      <div class="key-setup hidden" id="key-setup">
+        <div class="side-label">Add a free key</div>
+        <select id="key-provider" class="input"></select>
+        <div class="key-row">
+          <input id="key-input" class="input grow" type="password" placeholder="paste API key…" autocomplete="off" />
+          <button class="btn btn-sm" id="key-save">Save</button>
+        </div>
+        <a class="hint key-link" id="key-link" href="#" target="_blank" rel="noopener">get a free key →</a>
+      </div>
     </div>
 
     <div class="side-section">
@@ -230,7 +251,7 @@
       </div>
       <div class="head-actions">
         <span class="chip free-chip" id="free-chip">free</span>
-        <button class="icon-btn" id="clear-chat" title="Clear">🗑</button>
+        <button class="icon-btn" id="clear-chat" title="Clear"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5A1.5 1.5 0 0 1 11 3h2a1.5 1.5 0 0 1 1.5 1.5V7M6.5 7l1 12.5A2 2 0 0 0 9.5 21h5a2 2 0 0 0 2-1.5L17.5 7"/></svg></button>
       </div>
     </header>
 
@@ -263,7 +284,7 @@
 <!-- approval modal -->
 <div class="modal-back hidden" id="approve-modal">
   <div class="modal">
-    <h3>⚠️ Approval needed</h3>
+    <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5L2.5 20h19L12 3.5z"/><path d="M12 10v4.5M12 17.5h.01"/></svg> Approval needed</h3>
     <div class="approve-title" id="ap-title"></div>
     <div class="approve-detail" id="ap-detail"></div>
     <pre class="approve-preview" id="ap-preview"></pre>
