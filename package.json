@@ -1,0 +1,45 @@
+{
+  "name": "nullx11code",
+  "version": "0.1.0",
+  "description": "Free-first multi-provider AI coding agent for your terminal and browser. NVIDIA NIM, Groq, Cerebras, OpenRouter, Gemini & more. Skills, slash commands, model icons.",
+  "type": "module",
+  "bin": {
+    "nullx11code": "bin/nullx11code.js",
+    "n11": "bin/nullx11code.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "start": "node bin/nullx11code.js",
+    "serve": "node bin/nullx11code.js serve",
+    "test": "node --test test/*.test.js",
+    "icons:png": "node scripts/gen-png-icons.js",
+    "icons": "node scripts/gen-icons.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "assets",
+    "install.sh"
+  ],
+  "keywords": [
+    "ai",
+    "cli",
+    "agent",
+    "coding-assistant",
+    "nvidia",
+    "nim",
+    "groq",
+    "openrouter",
+    "llm",
+    "terminal",
+    "skills",
+    "opencode"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Inkflow-Gab/nullx11code.git"
+  }
+}

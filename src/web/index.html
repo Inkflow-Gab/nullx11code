@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0a0d12" />
+<title>nullx11code — free-first AI coding agent</title>
+<meta name="description" content="AI coding agent for your terminal and browser. NVIDIA NIM, Groq, Cerebras, OpenRouter & more — free providers auto-detected, skills, slash commands, model icons." />
+<link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/icons/png/apple-touch-icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<!-- ══════════════════ LANDING ══════════════════ -->
+<div id="landing" class="landing">
+  <header class="topbar">
+    <div class="brand">
+      <img src="/assets/icons/app-icon.svg" alt="" class="brand-icon" width="34" height="34" />
+      <span class="brand-name">nullx11<em>code</em></span>
+    </div>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#providers">Providers</a>
+      <a href="#install">Install</a>
+      <button class="btn btn-sm" id="open-app-top">Launch App</button>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <img class="hero-icon" src="/assets/icons/app-icon.svg" alt="nullx11code icon" width="128" height="128" />
+    <h1 class="hero-title">Your AI coding agent.<br /><span class="grad">Free providers, zero lock-in.</span></h1>
+    <p class="hero-sub">
+      One tool for the terminal <strong>and</strong> the browser. Auto-detects free API keys,
+      shows every model with its icon, loads per-project <strong>skills</strong>, and speaks
+      <strong>/slash commands</strong> — just like opencode.
+    </p>
+    <div class="hero-cta">
+      <button class="btn btn-primary btn-lg" id="open-app">Open Web App →</button>
+      <a class="btn btn-ghost btn-lg" href="#install">Download CLI</a>
+    </div>
+    <div class="hero-stats">
+      <span><b id="stat-providers">11</b> providers</span>
+      <span class="dot">·</span>
+      <span><b>0$</b> free tiers</span>
+      <span class="dot">·</span>
+      <span><b>0</b> npm deps</span>
+      <span class="dot">·</span>
+      <span><b>Termux</b> ready</span>
+    </div>
+  </section>
+
+  <!-- animated download icon -->
+  <section class="download-badge" id="install" aria-label="Download CLI">
+    <div class="dl-icon" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="56" height="56">
+        <rect x="6" y="6" width="52" height="52" rx="14" class="dl-tray-bg"/>
+        <path class="dl-arrow" d="M32 18v20m0 0l-9-9m9 9l9-9" />
+        <path class="dl-tray" d="M18 46h28" />
+      </svg>
+    </div>
+    <div class="dl-copy">
+      <strong>Get the CLI</strong>
+      <span class="dl-sub">works in any terminal — incl. mobile (Termux)</span>
+      <div class="dl-actions">
+        <code class="dl-cmd" id="dl-cmd">curl -fsSL https://raw.githubusercontent.com/Inkflow-Gab/nullx11code/main/install.sh | sh</code>
+        <button class="btn btn-sm" id="copy-cmd">Copy</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- install terminal animation -->
+  <section class="install-terminal" aria-label="Install animation">
+    <div class="term">
+      <div class="term-bar">
+        <span class="tl red"></span><span class="tl yellow"></span><span class="tl green"></span>
+        <span class="term-title">install — nullx11code</span>
+        <div class="term-tabs">
+          <button class="tab active" data-cmd="curl">curl</button>
+          <button class="tab" data-cmd="npm">npm</button>
+          <button class="tab" data-cmd="npx">npx</button>
+        </div>
+      </div>
+      <pre class="term-body" id="term-out" aria-live="polite"></pre>
+      <div class="term-progress"><div class="term-progress-fill" id="term-bar"></div></div>
+    </div>
+  </section>
+
+  <!-- features -->
+  <section class="features" id="features">
+    <h2>Built for how you actually work</h2>
+    <div class="grid">
+      <article class="card">
+        <div class="card-ico" style="--c:#76B900">⚡</div>
+        <h3>Free providers, auto-detected</h3>
+        <p>NVIDIA NIM, Groq, Cerebras, OpenRouter <code>:free</code>, Gemini, Mistral, GitHub Models, local Ollama — drop a key in <code>.env</code> and it just appears.</p>
+      </article>
+      <article class="card">
+        <div class="card-ico" style="--c:#4E8CFF">🔎</div>
+        <h3>Model auto-detect + icons</h3>
+        <p>The agent fetches <code>/models</code>, picks the best free one, and shows every model with its family icon — Llama, Qwen, DeepSeek, Nemotron…</p>
+      </article>
+      <article class="card">
+        <div class="card-ico" style="--c:#F55036">🧩</div>
+        <h3>Skills are just folders</h3>
+        <p>Point the project at any folder of <code>SKILL.md</code>s. Toggle them per project. They inject into the system prompt only when active.</p>
+      </article>
+      <article class="card">
+        <div class="card-ico" style="--c:#6C72E5">⌨️</div>
+        <h3>/slash commands</h3>
+        <p><code>/model</code>, <code>/skills</code>, <code>/provider</code>, <code>/serve</code>, <code>/doctor</code>… with tab-completion, exactly like opencode.</p>
+      </article>
+      <article class="card">
+        <div class="card-ico" style="--c:#FA5010">🛠️</div>
+        <h3>Agent tools, human approval</h3>
+        <p>Reads, greps and lists files freely — every write and shell command waits for your <code>[y/n/a]</code>.</p>
+      </article>
+      <article class="card">
+        <div class="card-ico" style="--c:#3DDC84">📱</div>
+        <h3>Mobile-friendly CLI</h3>
+        <p>Line-based ANSI, auto-width, no mouse, no bracketed paste traps. Runs in Termux next to your prompt.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- providers -->
+  <section class="providers" id="providers">
+    <h2>Providers on board</h2>
+    <div class="prov-strip" id="prov-strip"><!-- filled by JS --></div>
+    <p class="prov-note">Free tiers marked · custom OpenAI-compatible endpoints supported · keys never leave your machine</p>
+  </section>
+
+  <footer class="footer">
+    <img src="/assets/icons/cli-icon.svg" alt="" width="22" height="22" />
+    <span>nullx11code v<span id="ver">0.1.0</span> · MIT · built with zero dependencies</span>
+  </footer>
+</div>
+
+<!-- ══════════════════ APP ══════════════════ -->
+<div id="app" class="app hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="side-head">
+      <img src="/assets/icons/app-icon.svg" alt="" width="26" height="26" />
+      <strong>nullx11</strong>
+      <button class="icon-btn" id="close-side" title="Close">✕</button>
+    </div>
+
+    <button class="btn btn-primary block" id="new-chat">＋ New chat</button>
+
+    <div class="side-section">
+      <div class="side-label">Provider & model</div>
+      <select id="provider-select" class="input"></select>
+      <div class="model-row">
+        <span class="model-icon" id="model-icon"></span>
+        <select id="model-select" class="input grow"></select>
+      </div>
+      <div class="model-meta" id="model-meta"></div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Skills <span class="hint" id="skills-count"></span></div>
+      <div class="skill-add">
+        <input id="skill-dir" class="input" placeholder="folder of skills…" />
+        <button class="btn btn-sm" id="add-skills">Add</button>
+      </div>
+      <ul class="skill-list" id="skill-list"></ul>
+    </div>
+
+    <div class="side-section grow">
+      <div class="side-label">Sessions</div>
+      <ul class="session-list" id="session-list"></ul>
+    </div>
+
+    <div class="side-foot">
+      <button class="btn btn-sm ghost" id="back-home">⌂ Home</button>
+      <span class="ver" id="app-ver"></span>
+    </div>
+  </aside>
+
+  <main class="chat">
+    <header class="chat-head">
+      <button class="icon-btn" id="open-side" title="Menu">☰</button>
+      <div class="head-model" id="head-model">
+        <span class="model-icon" id="head-icon"></span>
+        <span id="head-name">…</span>
+      </div>
+      <div class="head-actions">
+        <span class="chip free-chip" id="free-chip">free</span>
+        <button class="icon-btn" id="clear-chat" title="Clear">🗑</button>
+      </div>
+    </header>
+
+    <div class="messages" id="messages">
+      <div class="empty-state" id="empty-state">
+        <img src="/assets/icons/app-icon.svg" alt="" width="72" height="72" />
+        <h3>Start coding with <span class="grad">nullx11code</span></h3>
+        <p>Ask anything — it can read your project, propose edits and run commands (with your approval).</p>
+        <div class="suggestions">
+          <button class="suggestion">Explain what this repo does</button>
+          <button class="suggestion">Find every TODO and summarize</button>
+          <button class="suggestion">Draft a README for this project</button>
+        </div>
+      </div>
+    </div>
+
+    <form class="composer" id="composer">
+      <div class="composer-box">
+        <textarea id="input" rows="1" placeholder="Message…  (Enter to send, Shift+Enter for newline)"></textarea>
+        <div class="composer-tools">
+          <span class="ctx-hint" id="ctx-hint"></span>
+          <button type="submit" class="send-btn" id="send" title="Send">➤</button>
+        </div>
+      </div>
+      <div class="composer-note">Tool actions need approval · <code>/</code> commands work in the CLI</div>
+    </form>
+  </main>
+</div>
+
+<!-- approval modal -->
+<div class="modal-back hidden" id="approve-modal">
+  <div class="modal">
+    <h3>⚠️ Approval needed</h3>
+    <div class="approve-title" id="ap-title"></div>
+    <div class="approve-detail" id="ap-detail"></div>
+    <pre class="approve-preview" id="ap-preview"></pre>
+    <div class="modal-actions">
+      <button class="btn" id="ap-no">Reject</button>
+      <button class="btn btn-primary" id="ap-yes">Approve</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>

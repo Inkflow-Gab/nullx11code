@@ -1,0 +1,14 @@
+# secrets & local state — never commit
+.env
+.nullx11code/sessions/
+.nullx11code/config.local.json
+
+# runtime artifacts
+node_modules/
+*.log
+nullx11-export-*.md
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/
