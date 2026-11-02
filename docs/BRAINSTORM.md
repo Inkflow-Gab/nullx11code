@@ -1,3 +1,7 @@
+> **0.3.0 update:** the default experience now integrates the real OpenCode runtime.
+> See [OPENCODE.md](OPENCODE.md) for implemented scope and remaining limitations.
+> The roadmap below describes the original legacy engine.
+
 # nullx11code — Brainstorm & Roadmap
 
 Ideas captured while building v0.1.0. Checked = shipped, ▸ = next up, ○ = wild.

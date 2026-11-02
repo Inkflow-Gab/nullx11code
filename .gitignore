@@ -12,3 +12,10 @@ nullx11-export-*.md
 .DS_Store
 .idea/
 .vscode/
+
+# browser test output
+test-results/
+playwright-report/
+
+# generated terminal configs may contain private plugin options
+.nullx11code/runtime/

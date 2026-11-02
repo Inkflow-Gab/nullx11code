@@ -5,8 +5,8 @@
 <h1 align="center">nullx11<code>code</code></h1>
 
 <p align="center">
-  <b>Free-first AI coding agent</b> for your terminal <b>and</b> your browser.<br/>
-  Many providers · NVIDIA NIM flagship · model icons · project skills · <code>/</code>slash commands
+  <b>Free-first AI coding agent, powered by OpenCode.</b><br/>
+  Full-screen terminal UI · bundled web app · real agent runtime · existing nullx11code providers
 </p>
 
 <p align="center">
@@ -22,7 +22,117 @@
 
 ---
 
-## Why?
+## 0.5.0 — nullx11code identity, complete native access
+
+The default terminal now uses a **nullx11code logo, product footer and window
+identity** through the engine’s official TUI plugin API. The advanced browser
+workspace has nullx11code navigation, title, favicon and decorative wordmarks.
+Native command help and shell completion use `nullx11code` / `n11`.
+
+The underlying engine, provider names, configuration namespaces and legal
+attribution remain compatible with OpenCode. No model responses, code blocks,
+user text or tool output are rewritten to perform the rebrand.
+
+- Focused browser: `nullx11code serve`.
+- Complete advanced interface: **Open advanced workspace**, or
+  `/?experience=advanced` on the running server.
+- Full terminal: `nullx11code`.
+- Exact unmodified native behavior: `nullx11code upstream …`.
+- Disable automatic TUI presentation branding: `NULLX11_NO_BRANDING=1`.
+
+See [BRANDING.md](docs/BRANDING.md) for scope, compatibility and opt-outs.
+This is not a claim that the upstream desktop binaries or hosted services have
+been forked, deployed or independently reimplemented.
+
+## 0.4.0 — a proper coding workspace
+
+The browser now opens directly into **nullx11code’s redesigned workspace**:
+focused chat, searchable sessions/models, a project-file panel, an improved
+composer, real tool approvals, changes and tasks—not a marketing landing page.
+It is backed by the same real OpenCode engine as the terminal.
+
+- **Work with context:** browse/preview files and attach them to messages.
+- **Keep control:** inspect actual tool requests, approve/deny, and stop runs.
+- **Stay organized:** rename, fork, export, undo/restore and revisit sessions.
+- **Choose your stack:** connect provider keys, search models, switch build/plan.
+- **Make it yours:** dark/light themes, mobile layout, keyboard command palette.
+
+```sh
+npm install
+npm start                  # full OpenCode terminal experience
+npm run serve              # redesigned nullx11code browser workspace
+npm test                   # unit + engine/API/security integration tests
+npm run test:browser        # real browser, real engine, local mock provider
+```
+
+The complete native browser interface remains available from the workspace’s
+**Open advanced workspace** link (`/?experience=advanced`). Advanced native
+screens are retained, not falsely claimed as reimplemented in the branded UI.
+See [the workspace guide](docs/WORKSPACE.md) for features, screenshots produced
+by tests, security, platform notes and known boundaries.
+
+## 0.3.0 — the real OpenCode experience
+
+The default CLI now launches the **actual OpenCode 1.19.5 runtime**, rather
+than the original line-based chat. This includes its full-screen chat composer,
+streaming/tool UI, model and agent pickers, sessions, themes, diffs/undo,
+MCP/LSP/plugin support, and bundled browser client. Features requiring external
+servers, tools or credentials still need configuration.
+
+```sh
+npm install                         # in a source checkout
+npm start                           # full-screen terminal UI
+node bin/nullx11code.js serve        # branded workspace + native UI, port 7860
+node bin/nullx11code.js -p "explain this repo"
+```
+
+After a global install, use `nullx11code` or `n11` as before:
+
+```sh
+nullx11code --provider nvidia --model meta/llama-3.3-70b-instruct
+nullx11code models
+nullx11code mcp --help
+nullx11code session list
+nullx11code upstream --help          # full upstream CLI help
+nullx11code legacy                   # original lightweight terminal chat
+nullx11code legacy serve             # original browser app
+```
+
+Existing `.env` keys, provider settings, enabled skills, custom Markdown
+commands, instructions and permission rules are bridged without overwriting
+original configuration. Modern sessions use upstream storage; old sessions
+remain accessible in `legacy`.
+
+**Scope:** this is an integration of the official, pinned `opencode-ai` npm
+release, not a source-level fork of the entire upstream monorepo. The terminal and native browser
+screens retain OpenCode branding; the 0.4.0 workspace is nullx11code-branded. Desktop binaries, hosted services and all
+changes on upstream `main` are not included. See
+[the integration guide](docs/OPENCODE.md) for platform support, command changes,
+configuration precedence, security, known limitations and maintenance.
+
+**Web security:** `serve` binds to `0.0.0.0`. Set `OPENCODE_SERVER_PASSWORD`
+before exposing it outside a trusted development environment, or use
+`serve --host 127.0.0.1` for local-only access.
+
+**Platforms:** modern mode uses upstream's native Linux/macOS/Windows x64/arm64
+packages. Android/Termux can use `legacy`; its Node implementation still has
+no runtime dependencies. Optional native packages/install scripts must be
+enabled for modern mode.
+
+**License:** MIT. OpenCode attribution and license are preserved in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
+## Legacy CLI reference
+
+The sections below document the original **0.2.x/legacy engine**. Invoke its
+commands with `nullx11code legacy …` (or `npm run start:legacy`). Its slash
+commands, session format and UI differ from modern OpenCode mode. Use
+`nullx11code --help` and [docs/OPENCODE.md](docs/OPENCODE.md) for the new defaults.
+
+### Why keep legacy?
+
 
 - **Zero dependencies** — one Node script, no `node_modules` graveyard, runs on anything with Node ≥ 18 (including Termux on Android).
 - **Free-first providers** — NVIDIA NIM, Groq, Cerebras, OpenRouter `:free`, Gemini, Mistral, GitHub Models, local Ollama/LM Studio. Keys auto-detected from env / `.env` / config; free ones are preferred automatically.

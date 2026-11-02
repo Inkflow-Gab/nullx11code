@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.5.0';
 export const APP_NAME = 'nullx11code';
 
 export function globalDir() {
@@ -145,9 +145,9 @@ export function saveProjectConfig(patch, cwd = process.cwd()) {
 }
 
 /** Resolve an API key: process env > .env files > config providers block. */
-export function getApiKey(provider, cfg) {
+export function getApiKey(provider, cfg, env = process.env) {
   for (const name of provider.env || []) {
-    const v = process.env[name] || cfg?._env?.[name];
+    const v = env[name] || cfg?._env?.[name];
     if (v) return v;
   }
   const custom = cfg?.providers?.[provider.id]?.apiKey;
