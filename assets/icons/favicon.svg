@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="fbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12161f"/>
+      <stop offset="1" stop-color="#07090d"/>
+    </linearGradient>
+    <filter id="fglow" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#fbg)"/>
+  <g font-family="ui-monospace,monospace" font-size="11" font-weight="700">
+    <text x="14" y="30" fill="#76b900" opacity=".55">01</text>
+    <text x="14" y="106" fill="#e8eef7" opacity=".3">10</text>
+    <text x="98" y="34" fill="#e8eef7" opacity=".3">10</text>
+    <text x="100" y="104" fill="#76b900" opacity=".55">01</text>
+  </g>
+  <!-- glowing white sprite -->
+  <g filter="url(#fglow)">
+    <path d="M44 48 L40 28 L57 40 Z" fill="#f2f6fc"/>
+    <path d="M84 48 L88 28 L71 40 Z" fill="#f2f6fc"/>
+    <path d="M64 36c-13 0-22 9-22 21 0 8 4 13 4 18 0 5-3 7-3 11 0 4 5 6 10 6h22c5 0 10-2 10-6 0-4-3-6-3-11 0-5 4-10 4-18 0-12-9-21-22-21z" fill="#f2f6fc"/>
+    <ellipse cx="56" cy="56" rx="5" ry="6.2" fill="#131923"/>
+    <ellipse cx="74" cy="56" rx="5" ry="6.2" fill="#131923"/>
+    <circle cx="57.6" cy="53.8" r="1.8" fill="#fff"/>
+    <circle cx="75.6" cy="53.8" r="1.8" fill="#fff"/>
+    <path d="M61 66 q3 3 6 0" stroke="#131923" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  </g>
+  <g stroke-linecap="round" filter="url(#fglow)">
+    <path d="M50 98 L57 103 L50 108" stroke="#fff" stroke-width="5" fill="none"/>
+    <path d="M64 108 H80" stroke="#fff" stroke-width="5"/>
+  </g>
+</svg>

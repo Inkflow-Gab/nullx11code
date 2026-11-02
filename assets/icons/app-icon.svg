@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="nullx11code">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12161f"/>
+      <stop offset="1" stop-color="#07090d"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="46%" r="55%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".28"/>
+      <stop offset=".55" stop-color="#ffffff" stop-opacity=".07"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".7" stop-color="#e8eef7"/>
+      <stop offset="1" stop-color="#c6d0de"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#76b900"/>
+    </linearGradient>
+    <filter id="glow" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="2.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="1.1"/>
+    </filter>
+    <clipPath id="sq"><rect x="6" y="6" width="116" height="116" rx="28"/></clipPath>
+  </defs>
+
+  <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#bg)" stroke="#2a3342" stroke-width="2.5"/>
+
+  <!-- flowing binary rain (clipped to the squircle) -->
+  <g clip-path="url(#sq)" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="9" font-weight="600">
+    <g fill="#76b900" opacity=".55">
+      <text x="16" y="26">01</text>
+      <text x="16" y="44">10</text>
+      <text x="16" y="80">01</text>
+      <text x="30" y="62">1</text>
+      <text x="104" y="30">10</text>
+      <text x="104" y="66">01</text>
+      <text x="94" y="96">10</text>
+      <text x="16" y="104">10</text>
+      <text x="76" y="22">0</text>
+    </g>
+    <g fill="#e8eef7" opacity=".34">
+      <text x="30" y="26">1</text>
+      <text x="30" y="96">0</text>
+      <text x="44" y="44">01</text>
+      <text x="104" y="48">1</text>
+      <text x="94" y="30">0</text>
+      <text x="44" y="108">10</text>
+      <text x="62" y="112">01</text>
+      <text x="86" y="112">1</text>
+    </g>
+    <g fill="#ffffff" opacity=".15">
+      <text x="16" y="62">0</text>
+      <text x="62" y="24">10</text>
+      <text x="76" y="44">1</text>
+      <text x="76" y="96">01</text>
+      <text x="104" y="88">0</text>
+    </g>
+  </g>
+
+  <!-- glow halo behind the sprite -->
+  <ellipse cx="62" cy="64" rx="34" ry="32" fill="url(#halo)"/>
+
+  <!-- anime sprite: cat-eared spirit, glowing white -->
+  <g filter="url(#glow)">
+    <!-- ears -->
+    <path d="M44 46 L40 26 L57 38 Z" fill="url(#body)"/>
+    <path d="M80 46 L84 26 L67 38 Z" fill="url(#body)"/>
+    <path d="M45.5 43 L43.5 32 L53 39 Z" fill="#f7b8c4" opacity=".85"/>
+    <path d="M78.5 43 L80.5 32 L71 39 Z" fill="#f7b8c4" opacity=".85"/>
+    <!-- head + body blob -->
+    <path d="M62 34
+             c-13 0-22 9-22 21 0 8 4 13 4 18 0 5-3 7-3 11 0 4 5 6 10 6
+             h22 c5 0 10-2 10-6 0-4-3-6-3-11 0-5 4-10 4-18 0-12-9-21-22-21z"
+          fill="url(#body)"/>
+    <!-- cheeks blush -->
+    <ellipse cx="47" cy="58" rx="4.5" ry="2.6" fill="#f7b8c4" opacity=".75"/>
+    <ellipse cx="77" cy="58" rx="4.5" ry="2.6" fill="#f7b8c4" opacity=".75"/>
+    <!-- big anime eyes -->
+    <ellipse cx="53" cy="53" rx="5.2" ry="6.4" fill="#131923"/>
+    <ellipse cx="71" cy="53" rx="5.2" ry="6.4" fill="#131923"/>
+    <circle cx="54.6" cy="50.8" r="1.9" fill="#ffffff"/>
+    <circle cx="72.6" cy="50.8" r="1.9" fill="#ffffff"/>
+    <circle cx="51.6" cy="55.4" r="1" fill="#9fe870" opacity=".9"/>
+    <circle cx="69.6" cy="55.4" r="1" fill="#9fe870" opacity=".9"/>
+    <!-- tiny smile -->
+    <path d="M59 63 q3 3 6 0" stroke="#131923" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <!-- little arms -->
+    <path d="M41 66 q-5 4-3 9" stroke="#e8eef7" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M83 66 q5 4 3 9" stroke="#e8eef7" stroke-width="5" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- prompt bar under the sprite -->
+  <g stroke-linecap="round" filter="url(#glow)">
+    <path d="M50 96 L57 101 L50 106" stroke="#ffffff" stroke-width="5" fill="none"/>
+    <path d="M64 106 H78" stroke="#ffffff" stroke-width="5"/>
+  </g>
+
+  <!-- brand spark -->
+  <path d="M96 20 l2.6 6.8 6.8 2.6 -6.8 2.6 -2.6 6.8 -2.6 -6.8 -6.8 -2.6 6.8 -2.6 z"
+        fill="url(#spark)" filter="url(#glow)"/>
+</svg>
