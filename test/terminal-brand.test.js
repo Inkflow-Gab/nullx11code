@@ -8,15 +8,16 @@ import { resolveRuntime } from '../src/runtime.js';
 let available = process.platform !== 'win32' && spawnSync('python3', ['--version']).status === 0;
 try { resolveRuntime({}); } catch { available = false; }
 
-test('real terminal renders nullx11code branding through the native TUI plugin', { skip: !available, timeout: 30000 }, () => {
+test('real terminal renders nullx11code branding through the native TUI plugin', { skip: !available, timeout: 60000 }, () => {
   const cli = fileURLToPath(new URL('../bin/nullx11code.js', import.meta.url));
+  for (const disableTitle of [false, true]) {
   const script = String.raw`
 import os, pty, subprocess, tempfile, select, time, struct, fcntl, termios, signal, shutil, json
 root=tempfile.mkdtemp(prefix='nullx11-tui-test-')
 master,slave=pty.openpty()
 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH',35,115,0,0))
 env={k:v for k,v in os.environ.items() if not k.endswith(('_KEY','_TOKEN')) and not k.startswith('OPENCODE_')}
-env.update(HOME=root, NULLX11_HOME=root+'/home', XDG_CONFIG_HOME=root+'/config', XDG_DATA_HOME=root+'/data', XDG_STATE_HOME=root+'/state', XDG_CACHE_HOME=root+'/cache', TERM='xterm-256color', OPENCODE_DISABLE_AUTOUPDATE='true', OPENCODE_DISABLE_DEFAULT_PLUGINS='true')
+env.update(HOME=root, NULLX11_HOME=root+'/home', XDG_CONFIG_HOME=root+'/config', XDG_DATA_HOME=root+'/data', XDG_STATE_HOME=root+'/state', XDG_CACHE_HOME=root+'/cache', TERM='xterm-256color', OPENCODE_DISABLE_AUTOUPDATE='true', OPENCODE_DISABLE_DEFAULT_PLUGINS='true', OPENCODE_DISABLE_TERMINAL_TITLE=${JSON.stringify(disableTitle ? 'true' : 'false')})
 p=subprocess.Popen(['node',${JSON.stringify(cli)}],cwd=root,env=env,stdin=slave,stdout=slave,stderr=slave,start_new_session=True)
 os.close(slave)
 out=b''
@@ -41,4 +42,6 @@ finally:
   assert.equal(rendered.brand, true);
   assert.equal(rendered.tagline, true);
   assert.equal(rendered.alternate, true);
+  assert.equal(rendered.title, !disableTitle, 'native terminal-title opt-out is respected');
+  }
 });

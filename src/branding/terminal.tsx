@@ -12,7 +12,8 @@ export default {
       return originalTitle.call(renderer, label);
     };
     renderer.setTerminalTitle = brandTitle;
-    renderer.setTerminalTitle('nullx11code');
+    const titleDisabled = ['true', '1'].includes(process.env.OPENCODE_DISABLE_TERMINAL_TITLE?.toLowerCase());
+    if (!titleDisabled && api.kv.get('terminal_title_enabled', true)) renderer.setTerminalTitle('nullx11code');
     api.lifecycle.onDispose(() => {
       if (renderer.setTerminalTitle === brandTitle) renderer.setTerminalTitle = originalTitle;
     });

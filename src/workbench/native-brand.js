@@ -36,6 +36,14 @@ function start() {
   const label = document.createElement('span'); label.className = 'nullx11-native-mode'; label.textContent = 'ADVANCED WORKSPACE';
   const attribution = document.createElement('span'); attribution.className = 'nullx11-native-credit'; attribution.textContent = 'Powered by OpenCode · MIT';
   const back = document.createElement('a'); back.href = '/'; back.className = 'nullx11-native-back'; back.textContent = '← Focused workspace';
+  // The native SPA delegates same-origin anchor clicks to its router. Leaving
+  // for the separate focused app requires a document navigation, not an SPA
+  // route change. Preserve browser modifier/new-tab behavior.
+  for (const link of [brand, back]) link.addEventListener('click', (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault(); event.stopPropagation();
+    window.location.assign('/');
+  });
   bar.append(brand, label, attribution, back);
   document.body.prepend(bar);
   let scheduled = false;

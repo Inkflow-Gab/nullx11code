@@ -143,6 +143,9 @@ test('search, theme, native escape hatch, keyboard and responsive mobile layout'
   await expect(page.locator('#nullx11-native-bar')).toBeVisible();
   await expect(page).toHaveTitle(/nullx11code/);
   await expect(page.getByText('Projects', { exact: true }).first()).toBeVisible();
+  await page.locator('.nullx11-native-back').click();
+  await expect(page.locator('#prompt')).toBeVisible();
+  await expect(page.locator('#nullx11-native-bar')).toHaveCount(0);
 });
 
 test('provider onboarding stores a key on the engine, never in browser storage', async ({ page }) => {
