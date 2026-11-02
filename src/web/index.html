@@ -84,7 +84,48 @@
           <button class="tab" data-cmd="npx">npx</button>
         </div>
       </div>
-      <pre class="term-body" id="term-out" aria-live="polite"></pre>
+      <div class="term-screen">
+        <pre class="term-cmd" id="term-out" aria-live="polite"></pre>
+
+        <!-- installer HUD: CSS layout (no hand-drawn box chars → perfect alignment) -->
+        <div class="hud hidden" id="hud">
+          <div class="hud-head">
+            <span class="hud-title">NULLX11 <b>//</b> INSTALLER <i>v0.1.0</i></span>
+            <span class="hud-status" id="hud-status" data-state="boot">
+              <i class="led"></i><span id="hud-status-text">00/00 BOOT</span>
+            </span>
+          </div>
+
+          <div class="hud-grid" id="hud-grid"></div>
+
+          <div class="hud-dl hidden" id="hud-dl">
+            <div class="hud-dl-top">
+              <span class="hud-dl-name" id="hud-dl-name">↓ package</span>
+              <span class="hud-hash" id="hud-hash">sha256 —</span>
+            </div>
+            <div class="segbar" id="segbar"></div>
+            <div class="hud-dl-stats">
+              <b id="hud-pct">0%</b>
+              <span id="hud-bytes">0.00 / 0.00 MB</span>
+              <span id="hud-speed">0.00 MB/s</span>
+              <span id="hud-eta">ETA —</span>
+            </div>
+          </div>
+
+          <div class="hud-log" id="hud-log"></div>
+
+          <div class="hud-done hidden" id="hud-done">
+            <div class="hud-done-msg">✓ INSTALL COMPLETE — ready in <b id="hud-time">0.0s</b></div>
+            <div class="hud-cmds">
+              <code>nullx11code</code>
+              <code>nullx11code serve</code>
+              <code>nullx11code doctor</code>
+            </div>
+            <button class="btn btn-sm hud-replay" id="replay" type="button">↻ replay</button>
+          </div>
+        </div>
+      </div>
+
       <div class="term-progress"><div class="term-progress-fill" id="term-bar"></div></div>
     </div>
   </section>
